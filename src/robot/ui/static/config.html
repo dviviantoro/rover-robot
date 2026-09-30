@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Robot — Config</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  .tabs { display: flex; gap: 0.25rem; flex-wrap: wrap; margin-bottom: 1.25rem;
+          border-bottom: 1px solid var(--border); padding-bottom: 0.6rem; }
+  .tabs button {
+    background: transparent; border: 1px solid transparent; color: var(--text-muted);
+    padding: 0.4rem 0.8rem; font-size: 0.86rem;
+  }
+  .tabs button:hover { background: var(--surface-2); color: var(--text); }
+  .tabs button.current { background: var(--accent-soft); color: var(--accent-soft-text); }
+
+  .setting { display: grid; grid-template-columns: 17rem 1fr auto; gap: 1rem;
+             align-items: start; padding: 0.9rem 0; border-bottom: 1px solid var(--border); }
+  .setting:last-child { border-bottom: none; }
+  @media (max-width: 44rem) { .setting { grid-template-columns: 1fr; gap: 0.4rem; } }
+  .setting .name { font-size: 0.88rem; font-weight: 650; }
+  .setting .help { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.15rem; }
+  .setting .disabled-why { font-size: 0.78rem; color: var(--warning-soft-text); margin-top: 0.2rem; }
+  .setting .staged { font-size: 0.76rem; color: var(--warning-soft-text); margin-top: 0.25rem; display: none; }
+  .setting.is-staged .staged { display: block; }
+  .setting .restart-col { display: flex; align-items: center; gap: 0.5rem; }
+  .setting .lamp { width: 0.55rem; height: 0.55rem; border-radius: 999px; background: var(--text-faint); flex-shrink: 0; }
+
+  .group-note { font-size: 0.82rem; color: var(--text-muted); margin: 0 0 0.4rem; }
+  .kind-note { display: flex; align-items: center; gap: 0.5rem; font-size: 0.78rem;
+               color: var(--text-muted); margin: 0.2rem 0 0.9rem; }
+  /* live input meter, shown on the Listening tab */
+  .meter-card { margin-bottom: 1.1rem; }
+  .meter-row { display: flex; align-items: center; gap: 0.75rem; margin: 0.5rem 0 0.35rem; }
+  .meter {
+    position: relative; flex: 1; height: 1.5rem; border-radius: var(--radius-sm);
+    background: var(--surface-3); overflow: hidden;
+  }
+  .meter .fill { position: absolute; inset: 0 auto 0 0; width: 0;
+                 background: linear-gradient(90deg, var(--success), var(--warning) 78%, var(--danger));
+                 transition: width 0.08s linear; }
+  .meter .peak { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--text); opacity: 0.65; transition: left 0.12s linear; }
+  .meter .floor { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px dashed var(--text-faint); transition: left 0.5s ease; }
+  .meter-scale { display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+  .speech-pill { min-width: 6.5rem; text-align: center; }
+  .meter-stats { display: flex; gap: 1.25rem; font-size: 0.78rem; color: var(--text-muted); font-variant-numeric: tabular-nums; margin-top: 0.4rem; }
+  .meter-stats b { color: var(--text); font-weight: 650; }
+
+  #toast {
+    position: fixed; left: 50%; bottom: 1.5rem; transform: translateX(-50%);
+    padding: 0.6rem 1.1rem; border-radius: var(--radius-sm); font-size: 0.86rem;
+    box-shadow: var(--shadow-lg); opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+    background: var(--surface); border: 1px solid var(--border); color: var(--text); z-index: 20;
+  }
+  #toast.show { opacity: 1; }
+  #toast.ok { background: var(--success-soft); color: var(--success-soft-text); border-color: transparent; }
+  #toast.bad { background: var(--danger-soft); color: var(--danger-soft-text); border-color: transparent; }
+  #toast.warn { background: var(--warning-soft); color: var(--warning-soft-text); border-color: transparent; }
+</style>
+</head>
+<body>
+<nav class="topnav">
+  <a class="brand" href="/">Robot</a>
+  <div class="links">
+    <a href="/chat">Chat</a>
+    <a href="/headless">Headless</a>
+    <a href="/knowledge">Knowledge</a>
+    <a href="/memory">Memory</a>
+    <a href="/monitor">Monitor</a>
+    <a href="/logs">Logs</a>
+    <a href="/services">Services</a>
+    <a href="/config" class="current">Config</a>
+  </div>
+  <div class="right"><a class="btn-ghost" href="/logout">Sign out</a></div>
+</nav>
+<div class="page wide">
+  <h1>Config</h1>
+  <p class="hint">
+    Everything the robot exposes, tunable without SSH. Which group a setting is in is
+    declared once in the orchestrator and drives both this page and how the change is
+    applied — so a control here cannot claim to apply live while secretly needing a
+    restart.
+    Starting, stopping and restarting the processes themselves lives on
+    <a href="/services">Services</a> — that page reads the board directly, so it still
+    works when the orchestrator is the thing that is down.
+  </p>
+  <div class="statusline">
+    <span class="dot" id="live-dot"></span><span id="live-text">connecting…</span>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+  <div id="panel"><p class="muted">Waiting for the orchestrator…</p></div>
+</div>
+<div id="toast"></div>
+<script src="/app.js"></script>
+<script src="/config.js"></script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+[Unit]
+Description=robot-core -- conversational orchestrator (ASR -> LLM -> TTS, barge-in)
+Documentation=file:///media/jetson/DATA/robot-py/dev-docs/architecture/system-overview.md
+After=network.target
+PartOf=robot.target
+
+# Deliberately NOT Requires=. system-overview.md § Failure design wants each of these
+# to degrade rather than cascade: the orchestrator reconnects to robot-asr and
+# robot-tts on its own, and speaks a canned line when the LLM is unreachable.
+Wants=robot-llm.service robot-asr.service robot-tts.service
+After=robot-llm.service robot-asr.service robot-tts.service
+
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=exec
+User=jetson
+Group=jetson
+# Needed to open the STM32 serial device.
+SupplementaryGroups=dialout
+WorkingDirectory=/media/jetson/DATA/robot-py
+EnvironmentFile=/media/jetson/DATA/robot-py/config/core.env
+
+ExecStart=/media/jetson/DATA/robot-py/.venv/bin/python -m robot.core.app
+
+# AGENTS.md working rule 3: survive a crash.
+Restart=on-failure
+RestartSec=3
+
+# This is the process that will own the STM32 link (M5). It must be the LAST thing
+# the OOM killer reaches -- losing it means losing the heartbeat, and the robot's
+# safety then depends entirely on the STM32 watchdog firing.
+OOMScoreAdjust=-500
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=false
+ReadWritePaths=/media/jetson/DATA/robot-py/run
+PrivateTmp=true
+
+[Install]
+WantedBy=robot.target

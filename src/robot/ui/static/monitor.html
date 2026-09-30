@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Robot — Monitor</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1rem; }
+  .stat-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.3rem; }
+  .stat-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); font-weight: 650; }
+  .stat-sub { font-size: 0.76rem; color: var(--text-muted); }
+  .stat-value { font-size: 1.75rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .stat-value .unit { font-size: 0.8rem; font-weight: 500; color: var(--text-muted); margin-left: 0.3rem; }
+  .spark { width: 100%; height: 2.4rem; display: block; margin: 0.5rem 0 0.3rem; overflow: visible; }
+  .cores { display: flex; gap: 0.2rem; margin-top: 0.6rem; }
+  .cores .core { flex: 1; height: 2.2rem; background: var(--surface-2); border-radius: 3px; position: relative; overflow: hidden; }
+  .cores .core > span { position: absolute; bottom: 0; left: 0; right: 0; background: var(--accent); transition: height 0.3s ease; }
+  .chips { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.6rem; }
+  .chip { font-size: 0.72rem; background: var(--surface-2); color: var(--text-muted); border-radius: 999px; padding: 0.15rem 0.55rem; font-variant-numeric: tabular-nums; }
+  .chip.hot { background: var(--warning-soft); color: var(--warning-soft-text); }
+  .section-title { margin: 1.75rem 0 0.2rem; }
+</style>
+</head>
+<body>
+<nav class="topnav">
+  <a class="brand" href="/">Robot</a>
+  <div class="links">
+    <a href="/chat">Chat</a>
+    <a href="/headless">Headless</a>
+    <a href="/knowledge">Knowledge</a>
+    <a href="/memory">Memory</a>
+    <a href="/monitor" class="current">Monitor</a>
+    <a href="/logs">Logs</a>
+    <a href="/services">Services</a>
+    <a href="/config">Config</a>
+  </div>
+  <div class="right"><a class="btn-ghost" href="/logout">Sign out</a></div>
+</nav>
+<div class="page wide">
+  <h1>Monitor</h1>
+  <p class="hint">
+    Live memory, CPU, GPU, power and thermals for the board, plus what each robot service
+    is using. Sampled by the dashboard itself, so leaving this page open costs the robot
+    nothing. Memory is drawn against the <b>real 7620 MiB ceiling</b>, not 8192 — the rest
+    is Tegra carveout and never available.
+  </p>
+
+  <div class="statusline">
+    <span class="dot" id="live-dot"></span><span id="live-text">connecting…</span>
+    <span class="controls">
+      <label for="refresh" style="margin:0">Refresh</label>
+      <select id="refresh">
+        <option value="1000">1s</option>
+        <option value="2000" selected>2s</option>
+        <option value="5000">5s</option>
+        <option value="0">paused</option>
+      </select>
+    </span>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="stat-head"><span class="stat-label">Memory in use</span><span class="stat-sub" id="mem-total"></span></div>
+      <div class="stat-value"><span id="mem-used">–</span><span class="unit">MiB</span></div>
+      <div class="bar" id="mem-bar"><span style="width:0"></span></div>
+      <div class="stat-sub" id="mem-sub"></div>
+      <svg class="spark" id="mem-spark" preserveAspectRatio="none"></svg>
+      <div class="stat-sub" id="mem-range"></div>
+    </div>
+
+    <div class="card">
+      <div class="stat-head"><span class="stat-label">Swap</span><span class="stat-sub" id="swap-total"></span></div>
+      <div class="stat-value"><span id="swap-used">–</span><span class="unit">MiB</span></div>
+      <div class="bar" id="swap-bar"><span style="width:0"></span></div>
+      <div class="stat-sub" id="swap-note">Swap on this board means thrashing — it wrecks latency.</div>
+    </div>
+
+    <div class="card">
+      <div class="stat-head"><span class="stat-label">CPU</span><span class="stat-sub" id="cpu-cores-note"></span></div>
+      <div class="stat-value"><span id="cpu-pct">–</span><span class="unit">%</span></div>
+      <svg class="spark" id="cpu-spark" preserveAspectRatio="none"></svg>
+      <div class="cores" id="cores"></div>
+    </div>
+
+    <div class="card">
+      <div class="stat-head"><span class="stat-label">GPU</span><span class="stat-sub" id="gpu-freq"></span></div>
+      <div class="stat-value"><span id="gpu-pct">–</span><span class="unit">%</span></div>
+      <svg class="spark" id="gpu-spark" preserveAspectRatio="none"></svg>
+      <div class="stat-sub" id="gpu-note"></div>
+    </div>
+
+    <div class="card">
+      <div class="stat-head"><span class="stat-label">Power &amp; temperature</span></div>
+      <div class="stat-value"><span id="power-total">–</span><span class="unit">W</span></div>
+      <div class="stat-sub">total board draw</div>
+      <div class="chips" id="power-chips"></div>
+      <div class="chips" id="temp-chips"></div>
+    </div>
+  </div>
+
+  <h2 class="section-title">Robot services</h2>
+  <p class="hint">
+    RSS includes each model's memory-mapped weights, which the kernel can evict — the
+    figure at the top excludes cache and is the real pressure. Watch for one row climbing
+    on its own: that is what a leak looks like before it becomes an OOM kill.
+  </p>
+  <div class="card">
+    <table>
+      <thead><tr><th>Service</th><th>PID</th><th class="num">Memory</th><th class="num">CPU</th><th class="num">Trend</th></tr></thead>
+      <tbody id="procs"><tr><td colspan="5" class="stat-sub">waiting for the first sample…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+<script src="/app.js"></script>
+<script src="/monitor.js"></script>
+</body>
+</html>

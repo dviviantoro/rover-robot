@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Robot — Memory</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  .headline { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+  .headline .big { font-size: 2.4rem; font-weight: 750; letter-spacing: -0.035em; font-variant-numeric: tabular-nums; line-height: 1; }
+  .headline .of { color: var(--text-muted); font-size: 0.95rem; }
+  .verdict { margin-left: auto; }
+
+  /* the allocation bar: stacked segments, one per line item */
+  .alloc { position: relative; height: 2.6rem; border-radius: var(--radius-sm);
+           background: var(--surface-3); overflow: hidden; display: flex; margin: 0.9rem 0 0.4rem; }
+  .alloc .seg { height: 100%; transition: width 0.45s cubic-bezier(0.22,1,0.36,1);
+                position: relative; min-width: 0; }
+  .alloc .seg:hover { filter: brightness(1.12); }
+  .alloc .peak-marker { position: absolute; top: 0; bottom: 0; width: 2px;
+                        background: var(--danger); opacity: 0.75; }
+  .alloc .target-marker { position: absolute; top: 0; bottom: 0; width: 0;
+                          border-left: 2px dashed var(--text-faint); opacity: 0.7; }
+  .legend { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; font-size: 0.78rem; color: var(--text-muted); }
+  .legend .item { display: flex; align-items: center; gap: 0.35rem; }
+  .legend .swatch { width: 0.65rem; height: 0.65rem; border-radius: 3px; flex-shrink: 0; }
+  .scale { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-faint); }
+
+  .selectors { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 0.9rem; }
+  .selectors .field .sub { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.3rem; min-height: 1.1rem; }
+  .actions { display: flex; gap: 0.6rem; align-items: center; margin-top: 1rem; flex-wrap: wrap; }
+  .actions .note { font-size: 0.8rem; color: var(--text-muted); }
+
+  .delta { font-weight: 650; font-variant-numeric: tabular-nums; }
+  .delta.up { color: var(--danger); }
+  .delta.down { color: var(--success); }
+  .compare { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 0.9rem; margin-top: 0.4rem; }
+  .compare .box { background: var(--surface-2); border-radius: var(--radius-sm); padding: 0.75rem 0.9rem; }
+  .compare .k { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); font-weight: 700; }
+  .compare .v { font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .compare .d { font-size: 0.75rem; color: var(--text-muted); }
+</style>
+</head>
+<body>
+<nav class="topnav">
+  <a class="brand" href="/">Robot</a>
+  <div class="links">
+    <a href="/chat">Chat</a>
+    <a href="/headless">Headless</a>
+    <a href="/knowledge">Knowledge</a>
+    <a href="/memory" class="current">Memory</a>
+    <a href="/monitor">Monitor</a>
+    <a href="/logs">Logs</a>
+    <a href="/services">Services</a>
+    <a href="/config">Config</a>
+  </div>
+  <div class="right"><a class="btn-ghost" href="/logout">Sign out</a></div>
+</nav>
+<div class="page wide">
+  <h1>Memory</h1>
+  <p class="hint">
+    Pick models and see what they would cost <b>before</b> applying anything. The board
+    has <b>7620 MiB</b>, not 8192 — the rest is Tegra carveout and never available. Every
+    figure here comes from the model's own header and the measurements in
+    <code>memory-budget.md</code>: the KV cache is computed from each model's real layer
+    and head geometry, which reproduces the 144 KiB/token measured for Qwen3-4B and
+    correctly gives Gemma-3 its much smaller 26 KiB/token. The fixed runtime overhead was
+    measured on the 4B, so small models are priced conservatively.
+  </p>
+  <div class="statusline">
+    <span class="dot" id="live-dot"></span><span id="live-text">connecting…</span>
+  </div>
+
+  <div class="card">
+    <div class="headline">
+      <span class="big" id="total">–</span>
+      <span class="of">MiB of <span id="ceiling">7620</span> at peak</span>
+      <span class="verdict"><span class="badge badge-neutral" id="verdict">…</span></span>
+    </div>
+    <div class="alloc" id="alloc"></div>
+    <div class="scale"><span>0</span><span id="target-label"></span><span id="ceiling-label"></span></div>
+    <div class="legend" id="legend"></div>
+    <div class="compare">
+      <div class="box"><div class="k">Steady state</div><div class="v" id="steady">–</div><div class="d">everything loaded, idle</div></div>
+      <div class="box"><div class="k">Loaded now</div><div class="v" id="resident">–</div><div class="d" id="resident-note">of the projection, actually held</div></div>
+      <div class="box"><div class="k">Mid-turn peak</div><div class="v" id="peak">–</div><div class="d">ASR decoding while the LLM is resident</div></div>
+      <div class="box"><div class="k">Headroom</div><div class="v" id="headroom">–</div><div class="d">left at peak</div></div>
+      <div class="box"><div class="k">Actually in use</div><div class="v" id="actual">–</div><div class="d" id="actual-note">measured right now</div></div>
+      <div class="box" style="flex-basis:100%"><div class="d">
+        <strong>Estimated</strong> is what a model of that size costs, from the measured
+        fits in <code>memory-budget.md</code> — the only thing available for a model that
+        is not loaded. <strong>Measured now</strong> is that process's RSS, read from
+        <code>/proc</code> when this arrived, and it refreshes every 3&nbsp;seconds. Where
+        the two disagree, the measurement is right and the estimate needs revisiting.
+      </div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Model selection</h2>
+    <p class="hint" style="margin-bottom:1rem">
+      Changing anything here re-prices immediately and applies nothing. Voices are loaded
+      on demand, so all three count only if all three get used.
+    </p>
+    <div class="selectors">
+      <div class="field">
+        <label for="sel-llm">LLM</label>
+        <select id="sel-llm"></select>
+        <div class="sub" id="sub-llm"></div>
+      </div>
+      <div class="field">
+        <label for="sel-ctx">LLM context</label>
+        <select id="sel-ctx">
+          <option value="1024">1024 tokens</option>
+          <option value="2048" selected>2048 tokens</option>
+          <option value="4096">4096 tokens</option>
+          <option value="8192">8192 tokens</option>
+        </select>
+        <div class="sub" id="sub-ctx"></div>
+      </div>
+      <div class="field">
+        <label for="sel-asr">ASR</label>
+        <select id="sel-asr"></select>
+        <div class="sub" id="sub-asr"></div>
+      </div>
+      <div class="field" id="field-style" hidden>
+        <label for="sel-style">Voice — all three languages</label>
+        <select id="sel-style"></select>
+        <div class="sub" id="sub-style"></div>
+      </div>
+      <div class="field piper-voice">
+        <label for="sel-en">Voice — English</label>
+        <select id="sel-en"></select><div class="sub" id="sub-en"></div>
+      </div>
+      <div class="field piper-voice">
+        <label for="sel-id">Voice — Bahasa Indonesia</label>
+        <select id="sel-id"></select><div class="sub" id="sub-id"></div>
+      </div>
+      <div class="field piper-voice">
+        <label for="sel-ar">Voice — Arabic</label>
+        <select id="sel-ar"></select><div class="sub" id="sub-ar"></div>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn-primary" id="apply">Apply</button>
+      <button class="btn-secondary" id="reset">Reset</button>
+      <span class="note" id="apply-note">Applying writes the config and restarts whatever has to reload.</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>What is actually loaded</h2>
+    <p class="hint">
+      A choice reaches the robot through three layers, and each can lag the next: what is
+      <b>chosen</b> here, what is <b>configured</b> in <code>config/*.env</code>, and what the
+      live process actually has open. The last column is read from the process itself, never
+      from the same file as the middle one — two readings of one file would agree by
+      construction and prove nothing. Same data as
+      <code>python scripts/measure/whats_running.py</code> and the
+      <a href="/services">Services</a> page.
+    </p>
+    <table>
+      <thead><tr><th>Service</th><th>Chosen</th><th>Configured</th><th>Running</th></tr></thead>
+      <tbody id="running-rows"><tr><td colspan="4" class="muted">Reading…</td></tr></tbody>
+    </table>
+    <p class="hint" id="running-note" style="margin-bottom:0"></p>
+  </div>
+
+  <div class="card">
+    <h2>Where it goes</h2>
+    <table>
+      <thead><tr><th>Component</th><th class="num">Estimated</th>
+        <th class="num">Measured now</th><th>Detail</th></tr></thead>
+      <tbody id="items"><tr><td colspan="4" class="muted">Waiting for the orchestrator…</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Installed models</h2>
+    <table>
+      <thead><tr><th>Model</th><th>Kind</th><th class="num">On disk</th><th class="num">Resident</th></tr></thead>
+      <tbody id="models"><tr><td colspan="4" class="muted">…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+<script src="/app.js"></script>
+<script src="/memory.js"></script>
+</body>
+</html>

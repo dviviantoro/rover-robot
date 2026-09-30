@@ -1,0 +1,33 @@
+# The robot's on-panel face: chat and voice interaction, rendered straight to DRM/KMS.
+#
+# Two crates on purpose, and the split is load-bearing:
+#
+#   protocol/  what robot-core says and what the panel should therefore show. Pure Rust,
+#              no Slint, no sockets. It compiles and tests in seconds on a laptop, in CI,
+#              or on this board while the robot is running -- which matters because the
+#              Jetson often has under 300 MiB free and a Slint build needs the stack
+#              stopped. Every interesting decision lives here.
+#   app/       the Slint UI and the WebSocket client. Needs a display stack to be useful
+#              and libinput-dev to link.
+#
+# Written against Slint 1.17.1 EXACTLY. Slint master has already renamed the linuxkms
+# features (backend-linuxkms-libseat / -libinput) and deprecated backend-linuxkms-noseat,
+# so a caret range would silently change what this builds.
+[workspace]
+resolver = "2"
+members = ["protocol", "app"]
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.97"
+
+[profile.release]
+# Smaller text segment means fewer resident code pages, which is the point on a board
+# that runs out of memory before it runs out of CPU.
+opt-level = "s"
+# "thin", not "fat": fat LTO peaks rustc's own memory badly here, and this board has
+# already had the LLM OOM-killed by a build twice.
+lto = "thin"
+codegen-units = 4
+panic = "abort"
+strip = true

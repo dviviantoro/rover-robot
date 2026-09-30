@@ -1,0 +1,351 @@
+// The robot's face: what it heard, what it is saying, and what it is doing.
+//
+// Two rules run through this file, and both are about the software renderer:
+//
+// 1. **The meter must not dirty the screen.** It updates ~8 times a second. Slint's
+//    software renderer does partial rendering by default, so a small opaque region costs
+//    ~115 KB a frame while a full 1366x768 redraw costs 4.2 MB -- the difference between
+//    under 1% of a core and 15%. So the meter lives inside its own opaque Rectangle,
+//    there are no window-wide gradients or animated backgrounds, and nothing large has
+//    `opacity` or `Clip` on it (either forces a layer and a full-region redraw).
+//
+// 2. **No ScrollView.** There is no pointer on this robot, so there is nothing to scroll
+//    with. Rust publishes only the lines that fit; the chat relayouts once per sentence
+//    (~0.5 Hz) instead of being entangled with the meter.
+
+import { Theme } from "theme.slint";
+
+export enum VoiceState { offline, idle, hearing, transcribing, thinking, speaking }
+export enum FaceKind { neutral, happy, thinking, listening, speaking, sad }
+
+export struct ChatLine {
+    robot: bool,
+    text: string,
+    language: string,
+    streaming: bool,
+    typed: bool,
+}
+
+// ---------------------------------------------------------------- the face
+//
+// Drawn from primitives rather than images: resolution-independent, no decode, no asset
+// memory, and the transitions animate for free. The six expressions are the six the
+// STM32's LED matrix knows (serial-protocol.md `FACE`), so the two faces cannot disagree.
+component Eyes inherits Rectangle {
+    in property <FaceKind> face;
+    in property <bool> blink;
+
+    property <length> eye: 34px;
+    property <color> ink: Theme.text;
+
+    HorizontalLayout {
+        spacing: 46px;
+        alignment: center;
+        for side in [0, 1]: Rectangle {
+            width: root.eye;
+            height: root.eye;
+            // Sad narrows the eyes; thinking half-closes one. Cheap, and readable at
+            // two metres, which is the only test that matters.
+            Rectangle {
+                width: parent.width;
+                height: root.face == FaceKind.sad ? root.eye * 0.55
+                      : root.face == FaceKind.thinking && side == 1 ? root.eye * 0.4
+                      : root.blink ? 3px
+                      : root.eye;
+                y: (parent.height - self.height) / 2;
+                background: root.ink;
+                border-radius: self.height / 2;
+                animate height { duration: 110ms; easing: ease-out; }
+            }
+        }
+    }
+}
+
+component Mouth inherits Rectangle {
+    in property <FaceKind> face;
+    // Driven by the level meter while speaking, so the mouth moves with the voice.
+    in property <float> openness;
+
+    property <length> w: 92px;
+
+    Rectangle {
+        width: root.w;
+        height: root.face == FaceKind.speaking ? 14px + (34px * root.openness)
+              : root.face == FaceKind.happy ? 18px
+              : 8px;
+        background: root.face == FaceKind.sad ? Theme.warn : Theme.text;
+        border-radius: self.height / 2;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        animate height { duration: 80ms; easing: ease-out; }
+        animate background { duration: 200ms; }
+    }
+}
+
+component FacePanel inherits Rectangle {
+    in property <FaceKind> face;
+    in property <float> openness;
+    in property <bool> blink;
+
+    background: Theme.surface;
+    border-radius: Theme.radius;
+
+    VerticalLayout {
+        padding: Theme.pad;
+        spacing: 22px;
+        alignment: center;
+        Eyes { face: root.face; blink: root.blink; height: 40px; }
+        Mouth { face: root.face; openness: root.openness; height: 50px; }
+    }
+}
+
+// ------------------------------------------------------------ the state pill
+component StatePill inherits Rectangle {
+    in property <VoiceState> voice;
+
+    property <string> label:
+          root.voice == VoiceState.offline      ? "offline"
+        : root.voice == VoiceState.hearing      ? "listening"
+        : root.voice == VoiceState.transcribing ? "transcribing"
+        : root.voice == VoiceState.thinking     ? "thinking"
+        : root.voice == VoiceState.speaking     ? "speaking"
+        : "ready";
+
+    property <color> tint:
+          root.voice == VoiceState.offline      ? Theme.bad
+        : root.voice == VoiceState.hearing      ? Theme.you
+        : root.voice == VoiceState.transcribing ? Theme.you
+        : root.voice == VoiceState.thinking     ? Theme.warn
+        : root.voice == VoiceState.speaking     ? Theme.good
+        : Theme.faint;
+
+    height: 34px;
+    background: root.tint.with-alpha(0.16);
+    border-radius: self.height / 2;
+    border-width: 1px;
+    border-color: root.tint.with-alpha(0.5);
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 16px;
+        spacing: 8px;
+        alignment: center;
+        Rectangle {
+            width: 9px; height: 9px; border-radius: 4.5px;
+            background: root.tint;
+            y: (parent.height - self.height) / 2;
+        }
+        Text {
+            text: root.label;
+            color: root.tint;
+            font-size: Theme.label;
+            font-weight: 700;
+            vertical-alignment: center;
+        }
+    }
+}
+
+// -------------------------------------------------------------- the chat
+component ChatView inherits Rectangle {
+    in property <[ChatLine]> lines;
+
+    background: Theme.surface;
+    border-radius: Theme.radius;
+
+    VerticalLayout {
+        padding: Theme.pad;
+        spacing: 10px;
+        // Newest at the bottom, which is where the eye goes.
+        alignment: end;
+
+        for line in root.lines: VerticalLayout {
+            spacing: 2px;
+            HorizontalLayout {
+                spacing: 8px;
+                Text {
+                    text: line.robot ? "robot" : "you";
+                    color: line.robot ? Theme.robot : Theme.you;
+                    font-size: Theme.speaker;
+                    font-weight: 700;
+                }
+                if line.language != "": Text {
+                    text: line.language;
+                    color: Theme.faint;
+                    font-size: Theme.label;
+                    vertical-alignment: center;
+                }
+                // Typed turns are answered silently by robot-core. Say so quietly, so
+                // the panel never implies the robot spoke when it did not.
+                if line.typed: Text {
+                    text: "typed";
+                    color: Theme.faint;
+                    font-size: Theme.label;
+                    vertical-alignment: center;
+                }
+            }
+            Text {
+                text: line.streaming ? line.text + " ▍" : line.text;
+                color: Theme.text;
+                font-size: Theme.body;
+                wrap: word-wrap;
+            }
+        }
+    }
+}
+
+// -------------------------------------------------------------- the meter
+//
+// Fixed bar count inside an opaque box. A level change dirties only the bars that
+// crossed a threshold, so the 8 Hz update stays a rounding error.
+component Meter inherits Rectangle {
+    in property <float> dbfs;
+    in property <float> floor-dbfs;
+    in property <bool> speech;
+    in property <bool> gate-open;
+
+    property <int> bars: 28;
+    property <float> filled: max(0, min(1, (root.dbfs - root.floor-dbfs) / (0 - root.floor-dbfs)));
+
+    // Opaque, so the renderer never has to repaint what is behind it.
+    background: Theme.surface;
+    border-radius: 6px;
+
+    HorizontalLayout {
+        padding-left: 8px;
+        padding-right: 8px;
+        spacing: 3px;
+        alignment: center;
+        for i in root.bars: Rectangle {
+            width: 5px;
+            height: 6px + (i / root.bars) * 16px;
+            y: (parent.height - self.height) / 2;
+            border-radius: 2px;
+            background: (i / root.bars) < root.filled
+                ? (root.gate-open ? (root.speech ? Theme.good : Theme.you) : Theme.faint)
+                : Theme.border;
+        }
+    }
+}
+
+// ------------------------------------------------------------ the whole panel
+export component PanelWindow inherits Window {
+    // Rust -> UI. Everything one-way: the reducer in robot-face-protocol owns the truth.
+    in property <VoiceState> voice: VoiceState.offline;
+    in property <FaceKind> face: FaceKind.neutral;
+    in property <[ChatLine]> lines;
+    in property <float> dbfs: -90;
+    in property <float> floor-dbfs: -60;
+    in property <bool> speech;
+    in property <bool> gate-open: true;
+    in property <bool> linked;
+    in property <bool> auth-failed;
+    in property <string> language;
+    in property <string> notice;
+    in property <bool> blink;
+
+    // UI -> Rust. Reachable from a key or a signal even with no touch panel attached.
+    callback stop-requested();
+
+    title: "robot";
+    background: Theme.bg;
+    // The measured preferred mode of the attached display.
+    preferred-width: 1366px;
+    preferred-height: 768px;
+
+    // Mouth openness tracks the voice while speaking.
+    property <float> openness: root.voice == VoiceState.speaking
+        ? max(0, min(1, (root.dbfs + 50) / 45)) : 0;
+
+    VerticalLayout {
+        padding: Theme.pad;
+        spacing: Theme.gap;
+
+        HorizontalLayout {
+            spacing: Theme.gap;
+            VerticalLayout {
+                spacing: Theme.gap;
+                width: 300px;
+                FacePanel {
+                    face: root.face;
+                    openness: root.openness;
+                    blink: root.blink;
+                    vertical-stretch: 1;
+                }
+                StatePill { voice: root.voice; }
+            }
+            ChatView { lines: root.lines; horizontal-stretch: 1; }
+        }
+
+        // Status strip. Fixed height so nothing above it ever relayouts.
+        Rectangle {
+            height: 52px;
+            background: Theme.surface;
+            border-radius: Theme.radius;
+            HorizontalLayout {
+                padding-left: 16px;
+                padding-right: 16px;
+                spacing: 16px;
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    Rectangle {
+                        width: 10px; height: 10px; border-radius: 5px;
+                        y: (parent.height - self.height) / 2;
+                        background: root.auth-failed ? Theme.bad
+                                  : root.linked ? Theme.good : Theme.warn;
+                    }
+                    Text {
+                        // A refused token is knowable -- robot-core answers 401 before
+                        // the upgrade -- so it must never hide behind "reconnecting".
+                        text: root.auth-failed ? "bad token"
+                            : root.linked ? "linked" : "reconnecting…";
+                        color: Theme.muted;
+                        font-size: Theme.label;
+                        vertical-alignment: center;
+                    }
+                }
+
+                if root.language != "": Text {
+                    text: root.language;
+                    color: Theme.faint;
+                    font-size: Theme.label;
+                    vertical-alignment: center;
+                }
+
+                Meter {
+                    dbfs: root.dbfs;
+                    floor-dbfs: root.floor-dbfs;
+                    speech: root.speech;
+                    gate-open: root.gate-open;
+                    width: 200px;
+                    height: 34px;
+                    y: (parent.height - self.height) / 2;
+                }
+
+                // Transient: an ignored utterance, a timeout, a refusal from the body.
+                Text {
+                    text: root.notice;
+                    color: Theme.warn;
+                    font-size: Theme.label;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                    overflow: elide;
+                }
+            }
+        }
+    }
+
+    // No pointer on this robot yet, so the interrupt has to be reachable another way.
+    // Escape and Space both stop the reply; the gpio-keys device already enumerates as
+    // a keyboard, and robot-face also stops on SIGUSR1.
+    forward-focus: keys;
+    keys := FocusScope {
+        key-pressed(event) => {
+            if (event.text == Key.Escape || event.text == " ") {
+                root.stop-requested();
+                return accept;
+            }
+            return reject;
+        }
+    }
+}

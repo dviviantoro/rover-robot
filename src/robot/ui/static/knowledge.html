@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Robot — Knowledge</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  .kpi { display: flex; gap: 2rem; margin-bottom: 0.5rem; }
+  .kpi div { }
+  .kpi .n { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .kpi .l { font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); font-weight: 650; }
+  #ingest-form { display: flex; flex-direction: column; gap: 0.6rem; }
+  #drop {
+    border: 2px dashed var(--border-strong); border-radius: var(--radius);
+    padding: 2rem 1.25rem; text-align: center; color: var(--text-muted);
+    transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+    cursor: pointer; margin-bottom: 1rem;
+  }
+  #drop:hover { border-color: var(--accent); color: var(--text); }
+  #drop.over { border-color: var(--accent); background: var(--accent-soft);
+               color: var(--accent-soft-text); }
+  #drop .big { font-size: 0.95rem; font-weight: 650; color: var(--text); display: block; margin-bottom: 0.2rem; }
+  #drop.over .big { color: var(--accent-soft-text); }
+  #drop .types { font-size: 0.74rem; color: var(--text-faint); margin-top: 0.35rem; }
+  #uploads { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 0.6rem; }
+  .upload { display: flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; }
+  .upload .name { flex: 1; }
+  .upload.err { color: var(--danger); }
+  .row-end { display: flex; justify-content: flex-end; gap: 0.5rem; }
+</style>
+</head>
+<body>
+<nav class="topnav">
+  <a class="brand" href="/">Robot</a>
+  <div class="links">
+    <a href="/chat">Chat</a>
+    <a href="/headless">Headless</a>
+    <a href="/knowledge" class="current">Knowledge</a>
+    <a href="/memory">Memory</a>
+    <a href="/monitor">Monitor</a>
+    <a href="/logs">Logs</a>
+    <a href="/services">Services</a>
+    <a href="/config">Config</a>
+  </div>
+  <div class="right"><a class="btn-ghost" href="/logout">Sign out</a></div>
+</nav>
+<div class="page">
+  <h1>Knowledge</h1>
+  <p class="hint">
+    What the robot can look things up in. Retrieval is cross-lingual: a document in one
+    of the three languages is findable by a question asked in another. Ingestion runs as
+    a background job and never blocks a conversation.
+  </p>
+  <div class="statusline">
+    <span class="dot" id="live-dot"></span><span id="live-text">connecting…</span>
+    <span class="controls"><button id="refresh" class="btn-secondary">Refresh</button></span>
+  </div>
+
+  <div class="card">
+    <div class="kpi">
+      <div><div class="n" id="chunks">–</div><div class="l">chunks</div></div>
+      <div><div class="n" id="sources">–</div><div class="l">sources</div></div>
+      <div><div class="n" id="pending">–</div><div class="l">queued</div></div>
+    </div>
+    <table>
+      <thead><tr><th>Source</th><th class="num">Chunks</th></tr></thead>
+      <tbody id="source-rows"><tr><td colspan="2" class="muted">Nothing stored yet.</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Add knowledge</h2>
+    <div id="drop">
+      <span class="big">Drop documents here</span>
+      or click to choose a file
+      <div class="types">.txt .md .json .csv .log .rst .yaml — up to 8 MB, UTF-8 text</div>
+    </div>
+    <input type="file" id="file-input" multiple hidden
+           accept=".txt,.md,.markdown,.json,.csv,.log,.rst,.yaml,.yml">
+    <div id="uploads"></div>
+    <form id="ingest-form">
+      <div>
+        <label for="text">Type a fact or paste a document</label>
+        <textarea id="text" rows="4" placeholder="The workshop keeps spare rollers in the blue drawer under the bench."></textarea>
+      </div>
+      <div>
+        <label for="path">…or a file path on the robot</label>
+        <input type="text" id="path" placeholder="/media/jetson/DATA/robot-py/notes.txt">
+      </div>
+      <div class="row-end"><button class="btn-primary" type="submit">Ingest</button></div>
+    </form>
+    <p class="hint" style="margin-top:0.75rem">
+      The robot also stores facts on its own when you tell it to remember something out loud.
+    </p>
+  </div>
+</div>
+<script src="/app.js"></script>
+<script src="/knowledge.js"></script>
+</body>
+</html>

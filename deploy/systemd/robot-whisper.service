@@ -1,0 +1,51 @@
+[Unit]
+Description=robot-whisper -- whisper.cpp server, the speech decoder
+Documentation=file:///media/jetson/DATA/robot-py/planning/TECH_STACK.md
+After=network.target
+PartOf=robot.target
+
+# robot-asr talks to this over loopback and reconnects on its own, so the start order
+# does not matter and this is deliberately not a Requires= of it. A whisper-server that
+# is down costs transcription; it must not cost the microphone or the barge-in signal.
+Before=robot-asr.service
+
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=exec
+User=jetson
+Group=jetson
+WorkingDirectory=/media/jetson/DATA/robot-py
+EnvironmentFile=/media/jetson/DATA/robot-py/config/whisper.env
+
+# Same NvMap reasoning as robot-llm: a service restarting after a crash finds its own
+# model still in page cache, and CUDA on Tegra will not force the kernel to reclaim it.
+# With WHISPER_USE_GPU=1 this process is a CUDA allocator too, so it is exposed to
+# exactly the failure robot-llm documents -- and makes it likelier for robot-llm.
+ExecStartPre=/media/jetson/DATA/robot-py/.venv/bin/python /media/jetson/DATA/robot-py/scripts/measure/drop_model_cache.py ${WHISPER_MODEL}
+
+# WHISPER_USE_GPU / WHISPER_FLASH_ATTN are 1/0 in config/whisper.env for consistency
+# with the other services, but whisper-server takes opt-OUT flags and systemd cannot
+# build an argument list conditionally. The wrapper turns one into the other; it is two
+# lines and keeps the config file honest.
+ExecStart=/media/jetson/DATA/robot-py/scripts/models/run_whisper.sh
+
+# AGENTS.md working rule 3: survive a crash.
+Restart=on-failure
+RestartSec=5
+
+# Between the LLM and the dashboard. Losing hearing is worse than losing the dashboard
+# and better than losing the ability to answer at all.
+OOMScoreAdjust=300
+
+# Enabled by default since 2026-09-14: this is the only decoder there is, so robot-asr
+# has nothing to post utterances at without it.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=false
+ReadWritePaths=/media/jetson/DATA/robot-py/run
+PrivateTmp=true
+
+[Install]
+WantedBy=robot.target

@@ -1,0 +1,53 @@
+[Unit]
+Description=robot-face -- the robot's panel (Slint on DRM/KMS, no desktop)
+Documentation=file:///media/jetson/DATA/robot-py/dev-docs/modules/face.md
+After=network.target
+PartOf=robot.target
+
+# Deliberately NOT Requires= robot-core, for the same reason robot-ui is not: the robot
+# must keep listening and driving with the panel dark, and a panel bug must not be able
+# to stop it. It reconnects on its own, so start order does not matter either.
+After=robot-core.service
+
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=exec
+User=jetson
+Group=jetson
+# video + render: /dev/dri/card1 and DRM master, both verified to work without root.
+# input: /dev/input/event* is root:input 0660 and jetson is not in `input` by default.
+# Nothing is attached today, so this costs nothing -- but without it, touch silently
+# does nothing the day a touchscreen arrives, which is a miserable thing to debug.
+SupplementaryGroups=video render input
+
+WorkingDirectory=/media/jetson/DATA/robot-py
+EnvironmentFile=/media/jetson/DATA/robot-py/config/face.env
+# CORE_WS_TOKEN. `-` so a missing file is not fatal; the panel simply connects without a
+# token, which is correct when robot-core is running without one.
+EnvironmentFile=-/media/jetson/DATA/robot-py/.env
+
+ExecStart=/media/jetson/DATA/robot-py/.cache/cargo-target/release/robot-face
+
+Restart=on-failure
+RestartSec=5
+
+# More valuable than the LAN dashboard (800), far less than the orchestrator that holds
+# the STM32 heartbeat. If memory runs short, the robot should lose its face before it
+# loses its voice.
+OOMScoreAdjust=700
+# Measured at 21 MiB resident. This is a leak alarm, not a working limit -- the same
+# reasoning as robot-tts's 1200M cap.
+MemoryMax=200M
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=false
+ReadWritePaths=/media/jetson/DATA/robot-py/run
+PrivateTmp=true
+# NOT PrivateDevices=true: it hides /dev/dri and /dev/input, and the panel would fail
+# with "No connected display connector found" for entirely the wrong reason.
+
+[Install]
+WantedBy=robot.target

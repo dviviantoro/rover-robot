@@ -1,0 +1,54 @@
+[Unit]
+Description=robot-tts -- Piper text-to-speech (English / Bahasa Indonesia / Arabic)
+Documentation=file:///media/jetson/DATA/robot-py/dev-docs/architecture/system-overview.md
+After=sound.target
+PartOf=robot.target
+
+# These belong in [Unit]: systemd ignores them in [Service] and says so.
+# memory-budget.md rule 5 -- fail loudly rather than restart-loop forever
+# on a model that cannot fit.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=exec
+User=jetson
+Group=jetson
+# `audio` is required to open the ALSA device.
+SupplementaryGroups=audio
+WorkingDirectory=/media/jetson/DATA/robot-py
+EnvironmentFile=/media/jetson/DATA/robot-py/config/tts.env
+
+ExecStart=/media/jetson/DATA/robot-py/.venv/bin/python -m robot.tts.service
+
+# AGENTS.md working rule 3: survive a crash.
+Restart=on-failure
+RestartSec=3
+
+# Refuses to start when no voice files are present rather than failing per-utterance
+# (memory-budget.md rule 5). Don't thrash if that is the case.
+
+# Bound the speaker's memory.
+#
+# Measured in M9: over a 45-minute soak robot-tts grew 342 -> 889 MiB while every other
+# service stayed flat. The growth decelerates (1193 -> 385 -> 217 MiB/hour across the
+# run), which is onnxruntime's allocation arena reaching its high-water mark rather than
+# an unbounded leak -- but it had not plateaued, and the budget has ~1 GB of headroom in
+# total. This caps it: if it ever does run away, the speaker is restarted instead of the
+# robot being OOM-killed. Restarting TTS costs ~1 s and drill 3 proves the reply survives
+# a dead speaker.
+MemoryMax=1200M
+MemoryHigh=1000M
+
+# system-overview.md section "Failure design": "TTS fails -> reply still appears in
+# the UI chat; log it; do not hang the turn." So the orchestrator must tolerate this
+# unit being down. It is deliberately NOT a Requires= of robot-core.
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=false
+ReadWritePaths=/media/jetson/DATA/robot-py/run
+PrivateTmp=true
+
+[Install]
+WantedBy=robot.target

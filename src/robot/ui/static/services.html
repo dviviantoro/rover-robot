@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Robot — Services</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  .supervisor {
+    display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+    font-size: 0.83rem; color: var(--text-muted); margin-bottom: 1rem;
+  }
+  .budget { margin-bottom: 1.25rem; }
+  .budget .figures { display: flex; gap: 1.5rem; flex-wrap: wrap; font-size: 0.82rem;
+                     color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .budget .figures b { color: var(--text); font-weight: 650; }
+
+  .svc { display: grid; grid-template-columns: 5.5rem 1fr auto; gap: 1rem;
+         align-items: start; padding: 1rem 0; border-bottom: 1px solid var(--border); }
+  .svc:last-child { border-bottom: none; }
+  @media (max-width: 46rem) { .svc { grid-template-columns: 1fr; gap: 0.5rem; } }
+  .svc .name { font-size: 0.92rem; font-weight: 650; }
+  .svc .blurb { font-size: 0.79rem; color: var(--text-muted); margin-top: 0.15rem; line-height: 1.45; }
+  .svc .facts { font-size: 0.76rem; color: var(--text-faint); margin-top: 0.35rem;
+                font-variant-numeric: tabular-nums; display: flex; gap: 0.9rem; flex-wrap: wrap; }
+  .svc .facts code { font-size: 0.95em; }
+  .svc .facts .on-gpu { color: var(--accent); font-weight: 650; }
+  .svc .actions { display: flex; gap: 0.4rem; align-items: flex-start; flex-wrap: wrap; }
+  .svc .actions button { font-size: 0.8rem; padding: 0.4rem 0.75rem; }
+  .svc.busy { opacity: 0.6; }
+
+  .confirm {
+    grid-column: 1 / -1; margin-top: 0.6rem; padding: 0.75rem 0.9rem;
+    border-radius: var(--radius-sm); background: var(--warning-soft);
+    color: var(--warning-soft-text); font-size: 0.83rem; line-height: 1.5;
+  }
+  .confirm .buttons { display: flex; gap: 0.5rem; margin-top: 0.6rem; }
+
+  .mismatch {
+    grid-column: 1 / -1; margin-top: 0.6rem; padding: 0.6rem 0.8rem;
+    border-radius: var(--radius-sm); background: var(--warning-soft);
+    color: var(--warning-soft-text); font-size: 0.82rem; line-height: 1.5;
+  }
+  .outcome { grid-column: 1 / -1; margin-top: 0.6rem; font-size: 0.82rem; }
+  .outcome pre {
+    margin: 0.45rem 0 0; padding: 0.7rem 0.8rem; border-radius: var(--radius-sm);
+    background: var(--surface-3); color: var(--text-muted); overflow-x: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.74rem;
+    line-height: 1.5; white-space: pre-wrap; word-break: break-word;
+  }
+</style>
+</head>
+<body>
+<nav class="topnav">
+  <a class="brand" href="/">Robot</a>
+  <div class="links">
+    <a href="/chat">Chat</a>
+    <a href="/headless">Headless</a>
+    <a href="/knowledge">Knowledge</a>
+    <a href="/memory">Memory</a>
+    <a href="/monitor">Monitor</a>
+    <a href="/logs">Logs</a>
+    <a href="/services" class="current">Services</a>
+    <a href="/config">Config</a>
+  </div>
+  <div class="right"><a class="btn-ghost" href="/logout">Sign out</a></div>
+</nav>
+<div class="page wide">
+  <h1>Services</h1>
+  <p class="hint">
+    Every process that makes up the robot: whether it is running, how long for, how much
+    memory it is holding, and a button to start, restart or stop exactly that one. Read
+    from the board itself rather than from the orchestrator — so this page still works
+    when the orchestrator is the thing that is down. Each row also names the model that
+    process actually has open, read from the process rather than from the config, and
+    says so when the two have drifted apart.
+  </p>
+  <div class="supervisor">
+    <span class="badge badge-info" id="supervisor-badge">…</span>
+    <span id="supervisor-text">checking which supervisor is in charge…</span>
+  </div>
+
+  <div class="card budget">
+    <h2>Memory</h2>
+    <div class="bar" id="mem-bar"><span style="width:0"></span></div>
+    <div class="figures" id="mem-figures"><span>reading…</span></div>
+    <p class="hint" style="margin-bottom:0">
+      Starting a model-loading service needs contiguous memory that CUDA on Tegra cannot
+      reclaim from another process. If the LLM will not start, stop something first —
+      that is what these buttons are for.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Processes</h2>
+    <div id="list"><p class="muted">Loading…</p></div>
+  </div>
+</div>
+<script src="/app.js"></script>
+<script src="/services.js"></script>
+</body>
+</html>

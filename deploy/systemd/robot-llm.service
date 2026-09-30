@@ -1,0 +1,59 @@
+[Unit]
+Description=robot-llm -- llama.cpp server (Qwen3-4B-Instruct Q4_K_M)
+Documentation=file:///media/jetson/DATA/robot-py/dev-docs/architecture/system-overview.md
+After=network-online.target
+Wants=network-online.target
+PartOf=robot.target
+
+# These belong in [Unit]: systemd ignores them in [Service] and says so.
+# memory-budget.md rule 5 -- fail loudly rather than restart-loop forever
+# on a model that cannot fit.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=exec
+User=jetson
+Group=jetson
+WorkingDirectory=/media/jetson/DATA/robot-py
+EnvironmentFile=/media/jetson/DATA/robot-py/config/llm.env
+
+# Drop this model's page cache before loading it. CUDA on Tegra allocates
+# through NvMap and will NOT force the kernel to reclaim cache, so a service
+# restarting after a crash finds its own model still cached and fails with
+# `cudaMalloc failed: out of memory`. Measured in M9: without this, a killed
+# llama-server retried 5 times, hit StartLimitBurst, and stayed down.
+ExecStartPre=/media/jetson/DATA/robot-py/.venv/bin/python /media/jetson/DATA/robot-py/scripts/measure/drop_model_cache.py ${LLM_MODEL}
+
+ExecStart=/media/jetson/DATA/robot-py/vendor/llama.cpp/build/bin/llama-server \
+    --model ${LLM_MODEL} \
+    --ctx-size ${LLM_CTX} \
+    --n-gpu-layers ${LLM_NGL} \
+    --flash-attn ${LLM_FLASH_ATTN} \
+    --parallel ${LLM_PARALLEL} \
+    --host ${LLM_HOST} \
+    --port ${LLM_PORT} \
+    --no-webui
+
+# AGENTS.md working rule 3: the robot must survive a component crash.
+Restart=on-failure
+RestartSec=5
+
+# memory-budget.md rule 5: fail loudly, don't restart-loop forever on a model
+# that cannot fit. Five failures in 5 min stops the unit and leaves it visible
+# in `systemctl status` instead of thrashing the board.
+
+# Bound the damage if the model is mis-sized: the OOM killer picks this process
+# first rather than the orchestrator that holds the STM32 link.
+OOMScoreAdjust=200
+
+# Loopback only -- the LLM API is never exposed on the LAN. The UI (M8) is the
+# only network-facing surface and it carries its own auth.
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=false
+ReadWritePaths=/media/jetson/DATA/robot-py
+
+[Install]
+WantedBy=robot.target

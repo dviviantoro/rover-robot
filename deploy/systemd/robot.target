@@ -1,0 +1,8 @@
+[Unit]
+Description=robot -- all conversational robot services
+Requires=multi-user.target
+After=multi-user.target
+AllowIsolate=no
+
+[Install]
+WantedBy=multi-user.target

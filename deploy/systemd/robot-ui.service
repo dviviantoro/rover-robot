@@ -1,0 +1,45 @@
+[Unit]
+Description=robot-ui -- NiceGUI dashboard (chat, health, memory, config)
+Documentation=file:///media/jetson/DATA/robot-py/dev-docs/architecture/system-overview.md
+After=network.target
+PartOf=robot.target
+
+# Deliberately NOT Requires= or BindsTo= robot-core. system-overview.md: "robot-ui is
+# optional by design -- the robot must keep listening and driving with the dashboard
+# closed. A UI bug must not be able to stop the robot." The dashboard reconnects to the
+# orchestrator on its own, so the start order does not matter either.
+After=robot-core.service
+
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=exec
+User=jetson
+Group=jetson
+WorkingDirectory=/media/jetson/DATA/robot-py
+
+EnvironmentFile=/media/jetson/DATA/robot-py/config/ui.env
+# Credentials. `-` means "start anyway if it is missing" -- but the service refuses to
+# run without ROBOT_UI_PASSWORD, so a missing .env fails loudly in the log rather than
+# serving an open page that can drive a robot.
+EnvironmentFile=-/media/jetson/DATA/robot-py/.env
+
+ExecStart=/media/jetson/DATA/robot-py/.venv/bin/python -m robot.ui.app
+
+Restart=on-failure
+RestartSec=5
+
+# The dashboard is the most expendable process here. If memory runs short the OOM
+# killer should take it long before the LLM, and far before the orchestrator that
+# holds the STM32 heartbeat.
+OOMScoreAdjust=800
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=false
+ReadWritePaths=/media/jetson/DATA/robot-py/run
+PrivateTmp=true
+
+[Install]
+WantedBy=robot.target

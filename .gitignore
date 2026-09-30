@@ -1,0 +1,34 @@
+# Secrets — constraint 8, never tracked
+.env
+
+# Models: multi-GB, live on the DATA partition, fetched by scripts/models/
+models/
+*.gguf
+*.onnx
+*.onnx.json
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Runtime state
+*.db
+*.db-shm
+*.db-wal
+run/
+logs/
+*.log
+
+# Firmware build output (PlatformIO)
+firmware/stm32/.pio/
+firmware/stm32/.vscode/
+
+# Measurement scratch
+scripts/measure/*.jsonl
+
+# Vendored third-party source + build trees (llama.cpp, whisper.cpp, sherpa-onnx, piper)
+vendor/
+.cache/

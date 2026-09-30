@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "robot"
+version = "0.1.0"
+description = "Multilingual offline conversational robot for Jetson Orin Nano 8GB"
+requires-python = ">=3.10,<3.11"
+
+# Runtime path only. AGENTS.md constraint 4 forbids PyTorch / TensorRT-LLM /
+# NeMo / transformers here -- the heavy lifting is done by native engines
+# (llama.cpp, sherpa-onnx, Piper) that are NOT pip dependencies: they are built
+# or fetched by scripts/ and supervised as their own systemd services.
+#
+# Anything added below must first be justified in planning/TECH_STACK.md with
+# its RAM cost (AGENTS.md working rule 1).
+dependencies = [
+    "sherpa-onnx",   # TECH_STACK ## Listen -- ASR + VAD runtime
+]
+
+[project.optional-dependencies]
+# Never imported by a running service.
+dev = ["pytest>=8", "pytest-asyncio>=0.23"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Robot — Logs</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  .toolbar { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.9rem; }
+  .toolbar select, .toolbar input[type="text"] { width: auto; }
+  .toolbar .grow { flex: 1; min-width: 10rem; }
+  .seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); overflow: hidden; }
+  .seg button { border: none; border-radius: 0; background: var(--surface); padding: 0.42rem 0.7rem; font-size: 0.8rem; color: var(--text-muted); }
+  .seg button + button { border-left: 1px solid var(--border); }
+  .seg button.on { background: var(--accent-soft); color: var(--accent-soft-text); }
+
+  #stream {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.775rem;
+    line-height: 1.5; height: 62vh; overflow-y: auto; padding: 0.75rem 0.9rem;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    white-space: pre-wrap; word-break: break-word;
+  }
+  #stream:empty::before { content: "Waiting for log lines…"; color: var(--text-faint); }
+  .line { display: flex; gap: 0.6rem; padding: 0.08rem 0; border-radius: 4px; }
+  .line:hover { background: var(--surface-2); }
+  .line time { color: var(--text-faint); flex-shrink: 0; }
+  .line .lvl { flex-shrink: 0; width: 4.2rem; font-weight: 700; }
+  .line .src { flex-shrink: 0; color: var(--violet); }
+  .line .msg { flex: 1; }
+  .DEBUG   .lvl { color: var(--text-faint); }
+  .INFO    .lvl { color: var(--info); }
+  .WARNING .lvl { color: var(--warning); }
+  .ERROR   .lvl, .CRITICAL .lvl { color: var(--danger); }
+  .ERROR, .CRITICAL { background: var(--danger-soft); }
+  .line .exc { color: var(--danger); }
+  .hidden { display: none; }
+  .counts { font-size: 0.76rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<nav class="topnav">
+  <a class="brand" href="/">Robot</a>
+  <div class="links">
+    <a href="/chat">Chat</a>
+    <a href="/headless">Headless</a>
+    <a href="/knowledge">Knowledge</a>
+    <a href="/memory">Memory</a>
+    <a href="/monitor">Monitor</a>
+    <a href="/logs" class="current">Logs</a>
+    <a href="/services">Services</a>
+    <a href="/config">Config</a>
+  </div>
+  <div class="right"><a class="btn-ghost" href="/logout">Sign out</a></div>
+</nav>
+<div class="page wide">
+  <h1>Logs</h1>
+  <p class="hint">
+    The orchestrator streams its own records here as they happen — no SSH, no guessing
+    which file to tail. The other services run as separate processes, so their output is
+    read from their log file, or from the journal when systemd is running the stack.
+  </p>
+
+  <div class="toolbar">
+    <div class="seg" id="source-seg"></div>
+    <span class="seg" id="level-seg">
+      <button data-level="DEBUG">Debug</button>
+      <button data-level="INFO" class="on">Info</button>
+      <button data-level="WARNING">Warn</button>
+      <button data-level="ERROR">Error</button>
+    </span>
+    <input type="text" id="filter" class="grow" placeholder="filter text…">
+    <button id="pause" class="btn-secondary">Pause</button>
+    <button id="clear" class="btn-ghost">Clear</button>
+  </div>
+
+  <div class="toolbar">
+    <span class="counts" id="counts"></span>
+    <span class="spacer"></span>
+    <span class="counts">orchestrator log level</span>
+    <span class="seg" id="setlevel-seg">
+      <button data-set="DEBUG">Debug</button>
+      <button data-set="INFO">Info</button>
+      <button data-set="WARNING">Warn</button>
+    </span>
+  </div>
+  <p class="hint" id="level-note" style="margin-top:-0.4rem">
+    Debug makes the orchestrator log the model's raw reply before any stripping — the
+    fastest way to see why a language tag or an action marker went wrong.
+  </p>
+
+  <div id="stream"></div>
+</div>
+<script src="/app.js"></script>
+<script src="/logs.js"></script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+[package]
+name = "robot-face"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+description = "The robot's panel: chat and voice interaction, rendered straight to DRM/KMS."
+
+[[bin]]
+name = "robot-face"
+path = "src/main.rs"
+
+[dependencies]
+robot-face-protocol = { path = "../protocol" }
+# EXACTLY 1.17.1. Slint master has already renamed the linuxkms features
+# (backend-linuxkms-libseat / -libinput) and deprecated backend-linuxkms-noseat, so a
+# caret range would silently change what this builds -- and on this board that would
+# mean losing input support without a compile error.
+slint = { version = "=1.17.1", default-features = false, features = ["std", "compat-1-2"] }
+serde_json = "1"
+# Blocking, not tokio. robot-core's WebSocket is bare RFC 6455 with no extensions and
+# never pings, so one thread with a read timeout does everything an async runtime would,
+# without ~2 MB of runtime on a board that measures every MiB.
+# No TLS features: this only ever speaks ws:// on loopback.
+tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
+log = "0.4"
+env_logger = { version = "0.11", default-features = false }
+
+[build-dependencies]
+slint-build = "=1.17.1"
+
+[features]
+default = []
+
+# The robot. Renders straight to DRM/KMS -- no compositor, no X11, no Wayland, no seat.
+# Verified on this board: card1-DP-1 connected, and `jetson` (group video) can take and
+# drop DRM master on /dev/dri/card1 without root, so -noseat is enough.
+kms = ["slint/backend-linuxkms-noseat", "slint/renderer-software"]
+
+# A developer laptop, in a window. Software renderer, not femtovg, so text metrics and
+# antialiasing match what the panel will actually draw.
+desktop = ["slint/backend-winit", "slint/renderer-software"]
+
+# This board, today, with or without a panel: windowless, real software rasteriser,
+# screenshots over MCP. The only way to check Arabic shaping without a display server.
+headless = ["slint/mcp", "slint/renderer-software"]

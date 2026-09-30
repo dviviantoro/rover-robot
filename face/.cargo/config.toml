@@ -1,0 +1,8 @@
+# Build artefacts go on the DATA partition, never on `/`.
+#
+# The root filesystem is 94% full (6.2 GB free) and already carries ~917 MB of
+# ~/.cargo and 1.3 GB of ~/.rustup. A clean Slint release build is 1.5-3 GB of
+# target/ plus registry sources, which would fill it. scripts/face/build.sh sets
+# CARGO_HOME to match; this covers a bare `cargo` invoked by hand.
+[build]
+target-dir = "/media/jetson/DATA/robot-py/.cache/cargo-target"

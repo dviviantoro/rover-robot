@@ -1,0 +1,338 @@
+/* Robot dashboard — design system.
+   Plain CSS, no build step. Same token names and class names throughout, so a page
+   never has to know which revision of the theme it is being rendered with. */
+
+:root {
+  --bg: #f6f7fb;
+  --bg-accent: radial-gradient(1200px 600px at 15% -10%, #eceeff 0%, transparent 60%),
+               radial-gradient(900px 500px at 110% 10%, #e8fbf5 0%, transparent 55%);
+  --surface: #ffffff;
+  --surface-2: #f2f3f7;
+  --surface-3: #e9ebf2;
+  --border: #e4e7ef;
+  --border-strong: #d3d8e4;
+  --text: #14161d;
+  --text-muted: #656d80;
+  --text-faint: #98a0b3;
+
+  --accent: #5b5bd6;
+  --accent-hover: #4a4ac4;
+  --accent-contrast: #ffffff;
+  --accent-soft: #eef0ff;
+  --accent-soft-text: #3f3fae;
+  --accent-glow: rgba(91, 91, 214, 0.25);
+
+  --danger: #d92d20;
+  --danger-soft: #fef3f2;
+  --danger-soft-text: #912018;
+  --success: #079455;
+  --success-soft: #ecfdf3;
+  --success-soft-text: #05603a;
+  --warning: #dc6803;
+  --warning-soft: #fffaeb;
+  --warning-soft-text: #93370d;
+  --info: #175cd3;
+  --violet: #7a5af8;
+
+  --radius-sm: 0.55rem;
+  --radius: 0.95rem;
+  --radius-lg: 1.35rem;
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05), 0 1px 3px rgba(16, 24, 40, 0.04);
+  --shadow: 0 4px 8px -2px rgba(16, 24, 40, 0.06), 0 12px 24px -6px rgba(16, 24, 40, 0.08);
+  --shadow-lg: 0 12px 20px -8px rgba(16, 24, 40, 0.12), 0 28px 56px -12px rgba(16, 24, 40, 0.18);
+  --ring: 0 0 0 3px var(--accent-soft);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0a0b0f;
+    --bg-accent: radial-gradient(1200px 600px at 15% -10%, #171a3a 0%, transparent 60%),
+                 radial-gradient(900px 500px at 110% 10%, #0d2b26 0%, transparent 55%);
+    --surface: #14161d;
+    --surface-2: #1b1e27;
+    --surface-3: #232733;
+    --border: #262a36;
+    --border-strong: #343a4a;
+    --text: #e9ecf3;
+    --text-muted: #98a0b3;
+    --text-faint: #6b7386;
+
+    --accent: #8b8bf0;
+    --accent-hover: #a5a5f7;
+    --accent-contrast: #0a0b0f;
+    --accent-soft: #1d1f3d;
+    --accent-soft-text: #b4b4fb;
+    --accent-glow: rgba(139, 139, 240, 0.3);
+
+    --danger: #f97066;
+    --danger-soft: #2d1513;
+    --danger-soft-text: #fda29b;
+    --success: #47cd89;
+    --success-soft: #0f2a1d;
+    --success-soft-text: #75e0a7;
+    --warning: #fdb022;
+    --warning-soft: #2b1f0d;
+    --warning-soft-text: #fec84b;
+    --violet: #9b8afb;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow: 0 4px 8px -2px rgba(0, 0, 0, 0.5), 0 12px 24px -6px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 12px 20px -8px rgba(0, 0, 0, 0.55), 0 28px 56px -12px rgba(0, 0, 0, 0.6);
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+
+body {
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Inter,
+               Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  background-image: var(--bg-accent);
+  background-attachment: fixed;
+  color: var(--text);
+  line-height: 1.55;
+  letter-spacing: -0.006em;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: none; opacity: 0.85; }
+
+.page { max-width: 47rem; margin: 0 auto; padding: 0 1.25rem 5rem; }
+.page.wide { max-width: 64rem; }
+.page.narrow { max-width: 30rem; }
+
+/* ---------- top nav ---------- */
+.topnav {
+  position: sticky; top: 0; z-index: 30;
+  display: flex; align-items: center; gap: 1.25rem;
+  padding: 0.7rem 1.25rem; margin-bottom: 1.25rem;
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  border-bottom: 1px solid var(--border);
+}
+.topnav .brand {
+  font-weight: 700; font-size: 1rem; color: var(--text); letter-spacing: -0.02em;
+  display: inline-flex; align-items: center; gap: 0.5rem;
+}
+.topnav .brand::before {
+  content: ""; width: 1.45rem; height: 1.45rem; border-radius: 0.5rem;
+  background: linear-gradient(140deg, var(--accent), var(--violet));
+  box-shadow: 0 2px 8px var(--accent-glow);
+}
+.topnav .links { display: flex; gap: 0.15rem; flex: 1; flex-wrap: wrap; }
+.topnav .links a {
+  color: var(--text-muted); font-size: 0.865rem; font-weight: 550;
+  padding: 0.4rem 0.75rem; border-radius: 999px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.topnav .links a:hover { color: var(--text); background: var(--surface-2); }
+.topnav .links a.current {
+  color: var(--accent-soft-text); background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.topnav .right { display: flex; align-items: center; gap: 0.5rem; }
+
+/* ---------- headings ---------- */
+h1 { font-size: 1.65rem; font-weight: 700; letter-spacing: -0.03em; margin: 0.4rem 0 0.5rem; }
+h2 { font-size: 1.02rem; font-weight: 650; letter-spacing: -0.015em; margin: 0 0 0.6rem; }
+h3 { font-size: 0.9rem; font-weight: 650; margin: 1rem 0 0.5rem; }
+.muted { color: var(--text-muted); }
+.hint.bad, .note.bad { color: var(--warning-soft-text); }
+.hint { font-size: 0.845rem; color: var(--text-muted); margin: 0 0 1.25rem; max-width: 52rem; }
+
+/* ---------- cards ---------- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 1.25rem;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+.card + .card { margin-top: 1rem; }
+
+/* ---------- buttons ---------- */
+button, .btn {
+  font: inherit; font-weight: 600; font-size: 0.855rem;
+  border-radius: var(--radius-sm); border: 1px solid transparent;
+  padding: 0.5rem 1rem; cursor: pointer; color: var(--text);
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.08s ease,
+              box-shadow 0.15s ease, opacity 0.15s ease;
+}
+button:active { transform: scale(0.98); }
+button:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+button:focus-visible { outline: none; box-shadow: var(--ring); }
+.btn-primary {
+  background: linear-gradient(180deg, var(--accent), var(--accent-hover));
+  color: var(--accent-contrast); box-shadow: 0 1px 2px var(--accent-glow);
+}
+.btn-primary:hover:not(:disabled) { filter: brightness(1.07); box-shadow: 0 4px 12px var(--accent-glow); }
+.btn-secondary { background: var(--surface); border-color: var(--border-strong); color: var(--text); }
+.btn-secondary:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); background: var(--surface-2); }
+.btn-ghost { background: transparent; border-color: transparent; color: var(--text-muted); padding: 0.35rem 0.65rem; }
+.btn-ghost:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
+.btn-danger { background: transparent; color: var(--danger); }
+.btn-danger:hover:not(:disabled) { background: var(--danger-soft); }
+.btn-warn { background: var(--warning-soft); color: var(--warning-soft-text); }
+.btn-warn:hover:not(:disabled) { background: var(--warning); color: #fff; }
+
+/* ---------- form controls ---------- */
+textarea, input[type="text"], input[type="number"], input[type="password"], select {
+  font: inherit; font-size: 0.885rem; background: var(--surface); color: var(--text);
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  padding: 0.52rem 0.7rem; width: 100%;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+textarea:hover, input:hover, select:hover { border-color: var(--text-faint); }
+textarea:focus, input:focus, select:focus {
+  outline: none; border-color: var(--accent); box-shadow: var(--ring);
+}
+select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+                    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 1.05rem) 55%, calc(100% - 0.75rem) 55%;
+  background-size: 0.3rem 0.3rem, 0.3rem 0.3rem;
+  background-repeat: no-repeat;
+  padding-right: 2rem;
+}
+input[type="range"] { width: 100%; accent-color: var(--accent); padding: 0; }
+label { display: block; font-size: 0.83rem; font-weight: 600; margin-bottom: 0.35rem; }
+fieldset {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  margin: 0 0 1.1rem; padding: 1.1rem 1.25rem 1.25rem;
+  background: var(--surface); box-shadow: var(--shadow-sm);
+}
+legend { font-weight: 650; font-size: 0.83rem; padding: 0 0.45rem; color: var(--text); }
+
+/* ---------- badges ---------- */
+.badge {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.045em; padding: 0.2rem 0.55rem; border-radius: 999px;
+  white-space: nowrap;
+}
+.badge-neutral { background: var(--surface-2); color: var(--text-muted); }
+.badge-info { background: var(--accent-soft); color: var(--accent-soft-text); }
+.badge-success { background: var(--success-soft); color: var(--success-soft-text); }
+.badge-warning { background: var(--warning-soft); color: var(--warning-soft-text); }
+.badge-danger { background: var(--danger-soft); color: var(--danger-soft-text); }
+
+/* ---------- table ---------- */
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 0.65rem 0.6rem; vertical-align: middle; }
+th {
+  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--text-faint); font-weight: 700; border-bottom: 1px solid var(--border);
+}
+tbody tr { border-bottom: 1px solid var(--border); transition: background 0.12s ease; }
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: var(--surface-2); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ---------- bars ---------- */
+.bar {
+  height: 0.5rem; background: var(--surface-3); border-radius: 999px;
+  overflow: hidden; margin: 0.4rem 0;
+}
+.bar > span {
+  display: block; height: 100%; border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--violet));
+  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1), background 0.3s ease;
+}
+.bar.warn > span { background: linear-gradient(90deg, var(--warning), #f79009); }
+.bar.danger > span { background: linear-gradient(90deg, var(--danger), #f97066); }
+.bar.success > span { background: linear-gradient(90deg, var(--success), #47cd89); }
+
+/* ---------- status line ---------- */
+.statusline {
+  display: flex; align-items: center; gap: 0.55rem; font-size: 0.83rem;
+  color: var(--text-muted); margin-bottom: 1rem;
+}
+.statusline .dot {
+  width: 0.5rem; height: 0.5rem; border-radius: 999px; background: var(--text-faint);
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+.statusline .dot.live { background: var(--success); box-shadow: 0 0 0 3px var(--success-soft); }
+.statusline .dot.dead { background: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
+.statusline .controls { margin-left: auto; display: flex; align-items: center; gap: 0.5rem; }
+.statusline .controls select { width: auto; }
+
+/* ---------- scrollbars ---------- */
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+
+/* ---------- utility ---------- */
+.center { text-align: center; }
+.stack { display: flex; flex-direction: column; gap: 0.75rem; }
+.row { display: flex; align-items: center; gap: 0.6rem; }
+.spacer { flex: 1; }
+code {
+  background: var(--surface-2); padding: 0.12rem 0.38rem; border-radius: 5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85em;
+}
+
+/* ---- the structured reply, folded under the answer ------------------------
+ *
+ * Shared by /chat and /headless via Robot.replyFields. Deliberately quiet: it sits
+ * under every robot turn, so anything louder than this would compete with the words.
+ */
+.reply-json {
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.4rem;
+}
+.reply-json > summary {
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  list-style: none;
+  user-select: none;
+}
+.reply-json > summary::-webkit-details-marker { display: none; }
+.reply-json > summary::before { content: "\25B8  "; display: inline-block; }
+.reply-json[open] > summary::before { content: "\25BE  "; }
+.reply-json > summary:hover { color: var(--text-muted); }
+
+.rf-grid {
+  display: grid;
+  grid-template-columns: minmax(6.5rem, max-content) 1fr;
+  gap: 0.15rem 0.7rem;
+  margin: 0.5rem 0 0.4rem;
+  font-size: 0.78rem;
+}
+.rf-row { display: contents; }
+.rf-key {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text-muted);
+}
+.rf-val { color: var(--text); word-break: break-word; }
+/* A field that did nothing is dimmed, not hidden -- "foot_direction: none" is an
+   answer, and a table that changes shape every turn cannot be read at a glance. */
+.rf-row.idle .rf-key, .rf-row.idle .rf-val { color: var(--text-faint); }
+
+.rf-raw {
+  margin: 0;
+  padding: 0.5rem 0.6rem;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+  overflow-x: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}

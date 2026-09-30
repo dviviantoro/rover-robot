@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Robot — Sign in</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+  .login { width: min(24rem, 92vw); }
+  .login h1 { margin: 0 0 0.2rem; font-size: 1.3rem; }
+  .login .sub { color: var(--text-muted); font-size: 0.85rem; margin: 0 0 1.1rem; }
+  .login .field { margin-bottom: 0.8rem; }
+  .login button { width: 100%; margin-top: 0.4rem; }
+  .error { background: var(--danger-soft); color: var(--danger-soft-text);
+           border-radius: var(--radius-sm); padding: 0.55rem 0.8rem;
+           font-size: 0.84rem; margin-bottom: 0.9rem; }
+</style>
+</head>
+<body>
+<form class="card login" method="post" action="/login">
+  <h1>Robot dashboard</h1>
+  <p class="sub">This page can drive the robot.</p>
+  <div class="error" id="error" hidden>Wrong username or password.</div>
+  <div class="field">
+    <label for="username">Username</label>
+    <input type="text" id="username" name="username" autocomplete="username" autofocus required>
+  </div>
+  <div class="field">
+    <label for="password">Password</label>
+    <input type="password" id="password" name="password" autocomplete="current-password" required>
+  </div>
+  <input type="hidden" id="next" name="next" value="/">
+  <button class="btn-primary" type="submit">Sign in</button>
+</form>
+<script>
+  const params = new URLSearchParams(location.search);
+  if (params.get('error')) document.getElementById('error').hidden = false;
+  const next = params.get('next');
+  if (next && next.startsWith('/')) document.getElementById('next').value = next;
+</script>
+</body>
+</html>

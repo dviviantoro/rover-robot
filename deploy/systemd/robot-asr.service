@@ -1,0 +1,45 @@
+[Unit]
+Description=robot-asr -- microphone, Silero VAD endpointing and the noise gates
+Documentation=file:///media/jetson/DATA/robot-py/dev-docs/architecture/system-overview.md
+After=sound.target
+PartOf=robot.target
+
+# These belong in [Unit]: systemd ignores them in [Service] and says so.
+# memory-budget.md rule 5 -- fail loudly rather than restart-loop forever
+# on a model that cannot fit.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=exec
+User=jetson
+Group=jetson
+# `audio` is required to open the ALSA capture device.
+SupplementaryGroups=audio
+WorkingDirectory=/media/jetson/DATA/robot-py
+# whisper.env FIRST, asr.env second, and the order is not arbitrary: robot-asr needs
+# WHISPER_MODEL/HOST/PORT from the former to reach the decoder and name the checkpoint
+# in its status, but both files set LOG_LEVEL and the last one read wins. This service's
+# own log level belongs to its own file.
+EnvironmentFile=/media/jetson/DATA/robot-py/config/whisper.env
+EnvironmentFile=/media/jetson/DATA/robot-py/config/asr.env
+
+ExecStart=/media/jetson/DATA/robot-py/.venv/bin/python -m robot.asr.service
+
+# AGENTS.md working rule 3: survive a crash. This unit exits non-zero when the
+# capture device disappears (mic unplugged), so a replug recovers on its own.
+Restart=on-failure
+RestartSec=3
+
+# ~1.5 GB resident (measured M3). If memory gets tight the OOM killer should take
+# the LLM before the listener -- a deaf robot is worse than a mute one.
+OOMScoreAdjust=100
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=false
+ReadWritePaths=/media/jetson/DATA/robot-py/run
+PrivateTmp=true
+
+[Install]
+WantedBy=robot.target

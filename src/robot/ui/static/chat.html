@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Robot — Chat</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  #messages { min-height: 55vh; padding-bottom: 1rem; }
+  #messages:empty::before {
+    content: "Type below. Replies appear here only — for a spoken conversation, use Headless.";
+    color: var(--text-faint); font-size: 0.88rem;
+  }
+  .turn { padding: 0.7rem 0.95rem; border-radius: var(--radius-sm); font-size: 0.92rem;
+          line-height: 1.5; margin-bottom: 0.6rem; }
+  .turn.you { background: var(--surface-2); border: 1px solid var(--border); }
+  .turn.robot { background: var(--accent-soft); }
+  .turn .who { font-weight: 700; font-size: 0.7rem; text-transform: uppercase;
+               letter-spacing: 0.05em; opacity: 0.7; display: block; margin-bottom: 0.2rem; }
+  .turn .lang { float: right; font-weight: 600; opacity: 0.75; }
+  .wire { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.76rem;
+          color: var(--warning-soft-text); background: var(--warning-soft);
+          border-radius: var(--radius-sm); padding: 0.35rem 0.6rem; margin-bottom: 0.6rem; }
+  .note { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.6rem; font-style: italic; }
+  .meta { font-size: 0.72rem; color: var(--text-faint); margin: -0.3rem 0 0.7rem 0.2rem; }
+  #composer { position: sticky; bottom: 0; background: var(--bg); padding: 0.75rem 0 1rem;
+              display: flex; gap: 0.6rem; align-items: flex-end; }
+  #chat-input { resize: none; }
+</style>
+</head>
+<body>
+<nav class="topnav">
+  <a class="brand" href="/">Robot</a>
+  <div class="links">
+    <a href="/chat" class="current">Chat</a>
+    <a href="/headless">Headless</a>
+    <a href="/knowledge">Knowledge</a>
+    <a href="/memory">Memory</a>
+    <a href="/monitor">Monitor</a>
+    <a href="/logs">Logs</a>
+    <a href="/services">Services</a>
+    <a href="/config">Config</a>
+  </div>
+  <div class="right"><a class="btn-ghost" href="/logout">Sign out</a></div>
+</nav>
+<div class="page">
+  <div class="statusline">
+    <span class="dot" id="live-dot"></span><span id="live-text">connecting…</span>
+    <span class="controls">
+      <button id="interrupt" class="btn-danger" title="Abandon the reply being generated">Stop</button>
+      <button id="clear" class="btn-ghost">Clear</button>
+    </span>
+  </div>
+  <div id="messages"></div>
+  <form id="composer">
+    <textarea id="chat-input" rows="1" placeholder="Ask the robot anything…" autofocus></textarea>
+    <button class="btn-primary" type="submit">Send</button>
+  </form>
+</div>
+<script src="/app.js"></script>
+<script src="/chat.js"></script>
+</body>
+</html>

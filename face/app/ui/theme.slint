@@ -1,0 +1,31 @@
+// One place to retune the panel for the real hardware.
+//
+// The screen is read from a metre or two away by someone standing in front of a robot,
+// not from 60 cm by someone at a desk. Type is large, contrast is high, and nothing
+// depends on noticing a subtle colour.
+export global Theme {
+    // Dark, because the panel is a face on a robot in a room, not a document. It also
+    // costs less on an OLED and is kinder in a dim corridor.
+    out property <color> bg:        #12141a;
+    out property <color> surface:   #1b1e27;
+    out property <color> border:    #262a36;
+
+    out property <color> text:      #e8eaf0;
+    out property <color> muted:     #98a0b3;
+    out property <color> faint:     #6b7386;
+
+    out property <color> you:       #7aa2f7;   // the person
+    out property <color> robot:     #9ece6a;   // the robot
+    out property <color> warn:      #e0af68;
+    out property <color> bad:       #f7768e;
+    out property <color> good:      #9ece6a;
+
+    out property <length> gap:      12px;
+    out property <length> pad:      18px;
+    out property <length> radius:   10px;
+
+    // 1366x768 is the panel measured on this board (card1-DP-1, preferred mode).
+    out property <length> speaker:  15px;   // who is talking
+    out property <length> body:     21px;   // the conversation itself
+    out property <length> label:    13px;   // chips and status
+}
