@@ -28,6 +28,7 @@ import logging
 import os
 import secrets
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import Form, Request
 from fastapi.responses import FileResponse, RedirectResponse
@@ -61,12 +62,41 @@ def is_authenticated(scope_session: dict) -> bool:
     return bool(scope_session.get("authenticated"))
 
 
+LANDING = "/dashboard"
+
+
+def safe_next(value: str | None) -> str:
+    """Where to send someone after they sign in: a path on THIS server, or the dashboard.
+
+    `next` arrives from a query string and then a form field, so it is whatever anyone
+    wrote into a link. Used as it was, `/login?next=//evil.example` signed a person in
+    and then sent them to another site that looks exactly like this one -- an open
+    redirect on the one page whose job is to ask for a password. The page's own
+    `startsWith('/')` check does not stop it: `//host` and `/\\host` both start with a
+    slash and both are followed to another origin, and a form can be posted without the
+    page's script at all. So the server decides, and it decides on the strict reading:
+    one leading slash, no backslash, no control characters.
+
+    `/` is also sent to the dashboard. It is the public landing page, and being signed in
+    is a request to get in.
+    """
+    value = (value or "").strip()
+    if (not value.startswith("/") or value.startswith("//") or "\\" in value
+            or any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in value)):
+        return LANDING
+    if value == "/" or value.split("?", 1)[0].rstrip("/") in ("/login", "/logout"):
+        return LANDING                 # back to the form, or straight out again
+    return value
+
+
 def guard(request: Request) -> RedirectResponse | None:
     """Return a redirect when the caller is not signed in, otherwise None."""
     if is_authenticated(request.session):
         return None
     path = request.url.path
-    target = "/login" + (f"?next={path}" if path not in ("/", "") else "")
+    target = "/login" + (f"?next={quote(path, safe='/')}" if path not in ("/", "") else "")
+    # `/` is public now, so nothing reaches here with it -- but if a future route does,
+    # sending it to a bare /login and then back to a page it cannot see would loop.
     return RedirectResponse(target, status_code=303)
 
 
@@ -76,20 +106,23 @@ def register(app) -> None:
     @app.get("/login", include_in_schema=False)
     async def _login_page(request: Request):
         if is_authenticated(request.session):
-            return RedirectResponse("/", status_code=303)
+            return RedirectResponse("/dashboard", status_code=303)
         return FileResponse(STATIC / "login.html", headers={"Cache-Control": "no-store"})
 
     @app.post("/login", include_in_schema=False)
     async def _login(request: Request,
                      username: str = Form(""), password: str = Form(""),
-                     next: str = Form("/")):
+                     next: str = Form(LANDING)):
+        target = safe_next(next)
         if not check(username, password):
             log.warning("failed dashboard login for %r from %s",
                         username, request.client.host if request.client else "?")
-            return RedirectResponse(f"/login?error=1&next={next}", status_code=303)
+            return RedirectResponse(
+                f"/login?error=1&next={quote(target, safe='/')}", status_code=303)
         request.session["authenticated"] = True
         request.session["user"] = username
-        return RedirectResponse(next or "/", status_code=303)
+        # The dashboard, not the landing page: signing in is a request to get in.
+        return RedirectResponse(target, status_code=303)
 
     @app.get("/logout", include_in_schema=False)
     async def _logout(request: Request):

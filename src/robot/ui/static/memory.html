@@ -41,32 +41,11 @@
   .compare .d { font-size: 0.75rem; color: var(--text-muted); }
 </style>
 </head>
-<body>
-<nav class="topnav">
-  <a class="brand" href="/">Robot</a>
-  <div class="links">
-    <a href="/chat">Chat</a>
-    <a href="/headless">Headless</a>
-    <a href="/knowledge">Knowledge</a>
-    <a href="/memory" class="current">Memory</a>
-    <a href="/monitor">Monitor</a>
-    <a href="/logs">Logs</a>
-    <a href="/services">Services</a>
-    <a href="/config">Config</a>
-  </div>
-  <div class="right"><a class="btn-ghost" href="/logout">Sign out</a></div>
-</nav>
+<body data-page="memory">
+<nav class="sidebar"></nav>
 <div class="page wide">
   <h1>Memory</h1>
-  <p class="hint">
-    Pick models and see what they would cost <b>before</b> applying anything. The board
-    has <b>7620 MiB</b>, not 8192 — the rest is Tegra carveout and never available. Every
-    figure here comes from the model's own header and the measurements in
-    <code>memory-budget.md</code>: the KV cache is computed from each model's real layer
-    and head geometry, which reproduces the 144 KiB/token measured for Qwen3-4B and
-    correctly gives Gemma-3 its much smaller 26 KiB/token. The fixed runtime overhead was
-    measured on the 4B, so small models are priced conservatively.
-  </p>
+  <p class="hint measure">What a selection would cost, <b>before</b> applying it. The ceiling is <b>7620 MiB</b> and the estimates are disk size times a measured factor — where they disagree with <b>Measured now</b>, the measurement is right.</p>
   <div class="statusline">
     <span class="dot" id="live-dot"></span><span id="live-text">connecting…</span>
   </div>
@@ -150,7 +129,7 @@
 
   <div class="card">
     <h2>What is actually loaded</h2>
-    <p class="hint">
+    <details class="aside"><summary>Why a choice can lag the robot</summary><p class="hint measure">
       A choice reaches the robot through three layers, and each can lag the next: what is
       <b>chosen</b> here, what is <b>configured</b> in <code>config/*.env</code>, and what the
       live process actually has open. The last column is read from the process itself, never
@@ -158,7 +137,7 @@
       construction and prove nothing. Same data as
       <code>python scripts/measure/whats_running.py</code> and the
       <a href="/services">Services</a> page.
-    </p>
+    </p></details>
     <table>
       <thead><tr><th>Service</th><th>Chosen</th><th>Configured</th><th>Running</th></tr></thead>
       <tbody id="running-rows"><tr><td colspan="4" class="muted">Reading…</td></tr></tbody>

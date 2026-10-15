@@ -70,10 +70,10 @@ class Setting:
 REGISTRY: tuple[Setting, ...] = (
     # ---- hot-reload -----------------------------------------------------
     Setting("persona", "Persona / system prompt", Kind.HOT, "core", "textarea",
-            default=None, group="behaviour",
+            default=None, group="knowledge", page="knowledge",
             help="Prepended to every turn. Takes effect on the next thing you say."),
     Setting("barge_in_grace_ms", "Barge-in grace (ms)", Kind.HOT, "core", "number",
-            default=0, minimum=0, maximum=2000, step=50, group="behaviour",
+            default=0, minimum=0, maximum=2000, step=50, group="listening",
             help="Ignore speech for this long after audio starts. 0 is correct unless "
                  "the robot interrupts itself."),
 
@@ -106,46 +106,50 @@ REGISTRY: tuple[Setting, ...] = (
             help="How much silence closes an utterance. Lower feels snappier but clips "
                  "people who pause mid-thought."),
     Setting("vad_threshold", "Speech threshold", Kind.HOT, "asr", "number",
-            default=0.5, minimum=0.1, maximum=0.9, step=0.05, group="listening",
+            default=0.5, minimum=0.1, maximum=0.9, step=0.05, group="hardware",
             help="Higher ignores more background noise, and more quiet speech. "
                  "0.6-0.7 is the first thing to try in a room full of people."),
 
     # --- what the robot does about a noisy room. robot/asr/noise.py has the numbers.
     Setting("asr_noise_gate_db", "Must beat the room by (dB)", Kind.HOT, "asr", "number",
-            default=6.0, minimum=0.0, maximum=30.0, step=1.0, group="listening",
+            default=6.0, minimum=0.0, maximum=30.0, step=1.0, group="hardware",
             help="An utterance whose speech level is not this far above the room's own "
                  "floor is dropped before it is decoded -- nothing within a few dB of "
                  "the floor is intelligible anyway, and this saves the decode rather "
                  "than filtering it afterwards. 0 turns the gate off. Watch the meter: "
                  "the floor is the number it settles on between sentences."),
+    Setting("auto_trigger", "Auto trigger (follow the room noise)", Kind.HOT, "asr",
+            "select", default="off", options=("off", "on"), group="hardware",
+            help="When on, the trigger level and the detector's sensitivity are derived "
+                 "from the noise floor the microphone is measuring: a noisier room raises "
+                 "the gate (6 to 21 dB over the floor) and the threshold (0.50 to 0.70), "
+                 "re-evaluated every two seconds between utterances. The knob and the "
+                 "sliders below are then read-only and show what it chose; switching it "
+                 "off restores the values you set by hand."),
+    Setting("mic_gain", "Microphone amplification (%)", Kind.HOT, "asr", "number",
+            default=100, minimum=0, maximum=200, step=1, group="hardware",
+            help="Gain applied to the microphone signal before anything measures or "
+                 "decodes it, so the level meter shows its effect. 100 leaves the signal "
+                 "as captured. Above 100 amplifies the room too and will clip a loud "
+                 "voice; the noise gate above is relative to the floor, so raising this "
+                 "does not by itself make the robot trigger more easily."),
     Setting("asr_max_no_speech", "Reject if whisper says no speech", Kind.HOT, "asr",
             "number", default=0.6, minimum=0.0, maximum=1.0, step=0.05, group="listening",
             help="whisper reports how sure it is that a segment contained no speech at "
                  "all, and then transcribes it anyway. Measured on this board: real "
                  "speech stayed under 0.09 even at 0 dB SNR, room noise sat at "
                  "0.82-0.91. 1.0 accepts everything."),
-    Setting("asr_denoise", "Noise suppression", Kind.HOT, "asr", "select",
-            default="off", options=("off", "stream", "utterance"), group="listening",
-            help="GTCRN suppression before the recogniser. Measured on synthetic "
-                 "mixtures it made whisper WORSE at every SNR (+27% to +314% word "
-                 "errors), which is why it is off -- "
-                 "denoiser artefacts are not the kind of noise whisper was trained on. "
-                 "It is here because none of that was measured in your room: record 30 "
-                 "seconds of it and run scripts/measure/denoise_ab.py --noise. "
-                 "stream cleans every frame before the VAD; utterance cleans only what "
-                 "the VAD kept."),
-    # `wakeword_sensitivity` lived here, disabled, reserved for an acoustic keyword
-    # spotter that was never adopted -- openWakeWord pulls scipy, scikit-learn and
-    # tflite-runtime (TECH_STACK.md § Listen). It is gone: `listen_mode=wake_word`
-    # matches the name against the transcript the recogniser already produces, which
-    # costs no model, no memory and no second ML runtime. A disabled control promising
-    # a feature that now exists somewhere else is worse than no control.
-
-    # The two numbers that decide how soon the robot starts talking. They live here
-    # rather than in the chunker's defaults because the right value depends on what else
-    # is on the GPU, which changes -- see Config.first_max_chars for the measurement.
-    # default=None like `max_tokens`: config/core.env is what decides unless somebody
-    # sets it here, and a concrete default would be applied over that file on startup.
+    Setting("asr_denoise", "Noise cancelling", Kind.HOT, "asr", "select",
+            default="off", options=("off", "on"), group="hardware",
+            help="GTCRN suppression before the recogniser, on the microphone you have "
+                 "selected above. It is OFF because it was measured here and it LOST: on "
+                 "synthetic mixtures it made whisper worse at every SNR tested, +27% to "
+                 "+314% word errors, because a denoiser's artefacts are not the kind of "
+                 "noise whisper was trained on. None of that was measured in YOUR room, "
+                 "which is why the switch exists -- record 30 seconds of it and run "
+                 "scripts/measure/denoise_ab.py --noise before trusting either setting. "
+                 "`on` cleans each utterance the voice detector kept; config/asr.env can "
+                 "still ask for `stream` to clean every frame instead."),
     Setting("first_max_chars", "Start speaking after at most (characters)",
             Kind.HOT, "core", "number",
             default=None, minimum=20, maximum=240, step=10, group="speaking",
@@ -155,6 +159,30 @@ REGISTRY: tuple[Setting, ...] = (
                  "whisper also on the GPU, 44 characters cost 2.3 s and 130 cost 7.6 s. "
                  "Lower is snappier and breaks mid-sentence more often. Listen before "
                  "settling on a value -- the cost is prosody, not a pause."),
+    # ---- hardware -------------------------------------------------------------
+    #
+    # These exist because of 2026-10-06: a USB headset was swapped for a stereo one,
+    # PulseAudio renamed the port from `...mono-fallback` to `...analog-stereo`, and the
+    # pinned name in config/asr.env then matched nothing. arecord could not create the
+    # stream, so the robot was completely deaf -- and the only sign was one line at
+    # startup, buried in an eighteen-line ALSA hw_params dump. Editing an env file over
+    # SSH to recover from a hotplug is the wrong shape of fix; these are a dropdown of
+    # what is actually plugged in.
+    Setting("mic_source", "Microphone", Kind.RESTART, "asr", "select",
+            default=None, group="hardware",
+            component="asr", env_file="config/asr.env", env_key="PULSE_SOURCE",
+            help="Which PulseAudio source the robot listens to. The list is what is "
+                 "plugged in right now; monitor sources are left out because recording "
+                 "one records the robot's own voice. Changing this restarts robot-asr. "
+                 "If the name you expect is missing, the device is not connected -- "
+                 "`pactl list short sources` is the same list from a terminal."),
+    Setting("speaker_sink", "Speaker", Kind.RESTART, "tts", "select",
+            default=None, group="hardware",
+            component="tts", env_file="config/tts.env", env_key="PULSE_SINK",
+            help="Which PulseAudio sink the robot speaks through. Leaving this unset "
+                 "means following PulseAudio's default, which on this board is the "
+                 "Tegra onboard codec wired to nothing: playback then succeeds and is "
+                 "silent. Changing this restarts robot-tts."),
     Setting("filler", "Acknowledge before answering",
             Kind.HOT, "core", "select",
             default="on", options=("on", "off"), group="speaking",
@@ -224,7 +252,7 @@ REGISTRY: tuple[Setting, ...] = (
                  "2 steps 0.23. Below 3 the artefacts stop being subtle. Preview before "
                  "committing; this is a judgement your ears make, not a number."),
     Setting("tts_volume", "Speaker volume (%)", Kind.HOT, "tts", "number",
-            default=100, minimum=0, maximum=200, step=5, group="speaking",
+            default=100, minimum=0, maximum=200, step=1, group="hardware",
             help="Applied to the audio itself, not a mixer control, so it works the "
                  "same on any sound card. Above 100% is amplification and will clip a "
                  "loud voice."),
@@ -259,22 +287,30 @@ REGISTRY: tuple[Setting, ...] = (
                  "enough, cuDNN fails at the first sentence and robot-tts rebuilds "
                  "itself on the CPU rather than going mute -- check the Services page "
                  "for where it actually ended up."),
-    Setting("serial_port", "STM32 serial port", Kind.RESTART, "core", "path",
-            default=None, component="serial", group="body",
+    Setting("serial_port", "Microcontroller port", Kind.RESTART, "core", "select",
+            default=None, component="serial", group="hardware",
             env_file="config/core.env", env_key="STM32_PORT",
-            help="Reconnects the body. Must be a stable path -- /dev/ttyACM0 may be the "
-                 "USB soundcard. Use /dev/robot-stm32 (scripts/bringup/setup_udev.sh)."),
+            help="The serial device the microcontroller is on. Found for you: at every "
+                 "start robot-core pings each serial port with {PING_robot}, takes the "
+                 "one that answers and saves it here (as its /dev/serial/by-id name when "
+                 "it has one), so this normally needs no attention -- choose a port only "
+                 "to override. Reconnects the body; empty means no body at all -- the "
+                 "robot still talks and listens, sends no heartbeat and cannot move. The "
+                 "microcontroller zeroes its own motors after 500 ms of silence, so "
+                 "changing this cannot leave it driving."),
 )
 
 # Tab order and labels for the dashboard.
 GROUPS = (
-    ("behaviour", "Behaviour", "Persona and how the robot handles being interrupted."),
-    ("listening", "Listening", "Microphone endpointing, sensitivity, what the robot does about a noisy room, and the ASR model."),
+    ("hardware", "Hardware", "Which microphone, which speaker, and the serial port to the microcontroller. Replacing a USB device renames it, and a stale name here is how the robot goes deaf."),
+    ("listening", "Listening", "Endpointing, what the robot does about a noisy room, and how it behaves when spoken over."),
     ("thinking", "Thinking", "Sampling, reply length and which LLM is loaded."),
     ("knowledge", "Knowledge", "How much retrieved context reaches the prompt."),
     ("speaking", "Speaking", "Which Piper voice answers in each language."),
-    ("body", "Body", "The serial link to the STM32."),
 )
+# `body` was a tab of its own for one control, the STM32 port. That control is hardware
+# like the microphone and the speaker, and all three fail the same way -- a device that
+# moved -- so they are one tab now and this one would render empty.
 
 BY_KEY = {s.key: s for s in REGISTRY}
 HOT = tuple(s for s in REGISTRY if s.kind is Kind.HOT)

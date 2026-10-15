@@ -39,6 +39,9 @@ class CoreClient:
         self.selection: dict = {}
         self.values: dict[str, Any] = {}
         self.state: str = "unknown"
+        # Cached like `budget` and for the same reason: a browser that opens mid-session
+        # must render from the last known payload, not sit on dashes until the next poll.
+        self.overview: dict = {}
         self.knowledge: dict = {}
         self.transcript: deque = deque(maxlen=400)
         self.level: dict = {}
@@ -114,8 +117,11 @@ class CoreClient:
             self.values = message.get("values", {})
             self.services = message.get("services", [])
             self.state = message.get("state", "unknown")
+            self.overview = message.get("overview", {})
         elif kind == "health":
             self.services = message.get("services", [])
+            if message.get("overview"):
+                self.overview = message["overview"]
         elif kind == "knowledge":
             self.knowledge = message
         elif kind == "budget" and not message.get("preview"):

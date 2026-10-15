@@ -85,7 +85,8 @@ static void sim_set_wheels(const float w[WHEEL_COUNT])
 static int sim_set_face(const char *name)
 {
     static const char *known[] = { "happy", "thinking", "listening",
-                                   "speaking", "sad", "neutral", NULL };
+                                   "speaking", "sad", "neutral",
+                                   "blink", "talking", "random", NULL };
     for (int i = 0; known[i]; ++i) {
         if (strcmp(known[i], name) == 0) {
             snprintf(g_face, sizeof(g_face), "%s", name);
@@ -174,6 +175,7 @@ int main(int argc, char **argv)
 
     char line[PROTOCOL_MAX_LINE];
     size_t len = 0;
+    int overlong = 0;
     while (g_running) {
         struct pollfd pfd = { g_master, POLLIN, 0 };
         /* Poll briefly so robot_tick still runs when nothing is arriving -- the
@@ -185,17 +187,23 @@ int main(int argc, char **argv)
             for (ssize_t i = 0; i < n; ++i) {
                 char c = buf[i];
                 if (c == '\n' || c == '\r') {
-                    if (len > 0) {
+                    if (overlong) {
+                        overlong = 0;
+                        len = 0;
+                    } else if (len > 0) {
                         line[len] = '\0';
                         fprintf(stderr, "[rx] %s\n", line);
                         fflush(stderr);
                         robot_on_line(&robot, line);
                         len = 0;
                     }
+                } else if (overlong) {
+                    /* dropping the rest of a line that did not fit */
                 } else if (len + 1 < sizeof(line)) {
                     line[len++] = c;
                 } else {
-                    len = 0;   /* overlong line: resynchronise at the next newline */
+                    overlong = 1;
+                    len = 0;
                 }
             }
         }

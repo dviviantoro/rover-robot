@@ -110,7 +110,9 @@ load_env() {
   # A simulated body writes its PTY path here. Without this a `svc restart core`
   # would bring the orchestrator back with STM32_PORT empty -- it would run happily
   # and silently without a body, which looks exactly like a broken serial link.
-  if [ -z "${STM32_PORT:-}" ] && [ -s "$RUN/stm32_port" ] && running body; then
+  # Not only when it is empty: a saved real port in config/core.env must not win over
+  # a simulator that is running -- the sim IS the body for as long as it is up.
+  if [ -s "$RUN/stm32_port" ] && running body; then
     STM32_PORT="$(cat "$RUN/stm32_port")"; export STM32_PORT
   fi
   ENV_LOADED=1

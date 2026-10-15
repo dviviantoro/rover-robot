@@ -165,6 +165,224 @@ better robot, which is why the measurement is recorded rather than the conclusio
 other two cannot fit -- `LLM_MODEL` in `config/llm.env`, priced on the Memory page
 against everything else before anything is loaded.
 
+## The dashboard
+
+    /            landing page -- PUBLIC, the only public page
+    /dashboard   what is configured, what it costs, what it has done
+    /chat /headless      typed and spoken
+    /knowledge
+    /memory /monitor /services
+    /logs
+    /config
+
+**One sidebar, defined once.** Nine pages each carried their own copy of the nav as
+HTML; adding a page meant editing ten files and the tenth was always missed. It is now
+`NAV` in `static/app.js`, rendered from `document.body.dataset.page`, and `app.js` calls
+`Robot.shell()` itself so a page cannot forget to. A page is in the shell because it sets
+`data-page`; the landing page and the login form deliberately do not, which is also how
+they keep the plain centred body.
+
+**`/` is public by not asking for the guard.** `auth.guard()` is a per-route call, so
+`PUBLIC_PAGES` simply omits it -- there is no prefix list to get wrong, and `/` as a
+prefix would have matched every route on the server.
+
+**The voice page is the one to open when a turn felt slow.** Conversation and activity
+are two independently scrolling columns that each stick to their newest line, and every
+turn carries a collapsible **Timing** breakdown: per-stage durations with the slowest
+marked and the setting that governs it named. `Robot.turnStages()` does the arithmetic,
+and the property that makes it trustworthy is tested -- **the durations sum exactly to
+`finished_ms`**, so nothing is double-counted or lost and the table cannot point at the
+wrong culprit. The acknowledgement is reported as its own absolute marker rather than
+folded into synthesis, because with `CORE_FILLER` on it starts BEFORE the answer's first
+clause exists and would otherwise produce a negative stage.
+
+**The dashboard's numbers all ride the existing 3 s health poll**, except the graphs:
+robot-ui samples `/proc` into a 120-entry ring every 2 s (`monitor.History`) and the page
+reads it from `/api/monitor?history=1`. Sampling on a timer rather than per page load is
+what makes the minute BEFORE you opened the page visible -- a page-load-driven history
+only ever shows the consequences of your own arrival. `hello` and `health`
+carry `overview` (token usage, knowledge count, uptime, what is in force), `budget`
+(memory) and `selection` (models). Nothing on that page polls on its own and nothing is
+computed in the browser from something it guessed. `overview()` is deliberately cheap --
+in-memory counters and one indexed `COUNT(*)` -- because it is paid for three times a
+second for as long as a page is open.
+
+**Token counts are llama.cpp's, not an estimate.** The final SSE chunk carries a
+`timings` object with `prompt_n`, `predicted_n` and `cache_n`; `Outcome` collects them
+and `_record_usage` folds them into the turn metrics and a lifetime total. `metrics.tokens`
+used to be a count of streamed deltas, which is not a count of tokens -- llama.cpp
+coalesces, and one delta can carry several. `cached_tokens` matters more than it sounds:
+a persona is re-sent every turn and almost entirely re-used, so without it the prompt
+reads far more expensive than it is (measured: 3,014 new against 11,574 re-used over 12
+turns).
+
+The lifetime total resets when robot-core restarts. That is the honest scope -- there is
+no store behind it, and pretending it survived a restart would be worse than saying it
+does not.
+
+**Shared components live in style.css, never in a page's `<style>`.** `.card`,
+`.card-head`, `.kpis`, `.cfg`, `.page-head`, `.tabs`, `.measure` and the chart classes
+are shared, which is the only way a card on one page is the same card on another. This is
+enforced: `tests/test_ui_styles.py` fails when a page uses a class that neither
+style.css nor its own block defines. It caught two real cases the moment it was written --
+the Knowledge page borrowing `.kpis`/`.cfg`/`.card-head` from index.html's private block
+and rendering unstyled, and `.hero` meaning two different things (a centred landing
+banner, and an internal page header). The latter is why the internal one is now
+`.page-head`, and why the segmented control is `.tabs` and not `.seg`: memory.html uses
+`.alloc .seg` for a bar segment, and a shared `.seg` would have silently taken it apart.
+
+**One page width, 72rem, everywhere.** Pages used to pick their own -- 47rem, `wide`
+64rem, `narrow` 30rem -- so moving between them resized the content column and the
+sidebar's right edge was the only fixed thing on screen. Prose and chat bubbles still get
+a reading measure *inside* that column (`.measure`, 46-48rem): uniform page width is a
+layout decision and not a licence for 72rem-long lines of text.
+
+**Charts are hand-written SVG, and the palette was validated rather than chosen.**
+`Robot.lineChart`, `Robot.stackedBars` and `Robot.legend` in `static/app.js`; a charting
+library is hundreds of kilobytes of parse on a board with ~100 MiB of headroom, to draw
+two lines and a bar per turn. `--series-1/2/3` are the only series colours and they are
+assigned in fixed order, never cycled:
+
+    measured with the dataviz validator, all pairs, light AND dark surfaces
+      5 hues in one lightness band   worst pair ΔE 0.4 (deutan) -- IDENTICAL
+      4 hues                         worst pair ΔE 1.1-5.0     -- still failing
+      3 hues #2563eb #d97706 #059669 every check PASSES in both modes
+
+So the pipeline's five stages are NOT five colours. Three phase hues carry the grouping
+and a glyph plus the label carries the stage -- identity never rests on colour alone. That
+is also why CPU and GPU share one axis: two measures of the same unit, one chart. A second
+y-axis is the one thing never to do.
+
+## Keeping the AI core up
+
+A service's non-zero exit is addressed to systemd. Under `run_stack.sh` nothing restarts
+it, so a crashed decoder stays crashed and the only sign is a red light on a page nobody
+has open. `src/robot/core/keepalive.py` runs off the health poll and fixes that.
+
+    CORE_KEEPALIVE=1               restart llm, whisper, asr and tts when they die
+    CORE_KEEPALIVE_LLM_FALLBACK=1  ...and shrink the LLM if it will not come back
+
+**`whisper` is watched on its own row, not through `asr`.** `asr` is the socket to
+robot-asr (microphone + VAD), which stays connected and green when the decoder behind it
+has died -- a deaf robot with every light on, and nothing for keepalive to see. The
+decoder's row is painted from its own `/health`; "loading" (503) is not "down", and a
+running-but-silent process is only called down after 90 s. Drilled 2026-10-14:
+`kill -9` -> DOWN in 1 s -> restart at 4 s -> healthy at 12 s.
+
+**One answer to "which model".** `robot.core.selection` applies the rule the doc already
+stated -- a dashboard pin beats the env file -- in one place: `./run.sh` syncs
+`config/*.env` to the pin before starting, the banner prints the same value, and
+keepalive's LLM downgrade updates the pin as well as the file. `./scripts/measure/whats_running.py`
+should show running = configured = chosen; a difference is a bug, not a state.
+
+**The three engines are deliberately not treated alike.** `asr` and `tts` are restarted
+and nothing else: which checkpoint they load is the user's decision, priced on the Memory
+page, and a program that quietly swapped `large-v3-turbo` for `tiny` because a restart
+failed would be answering a memory problem by degrading transcription without saying so.
+
+The LLM is the exception for the reason it is always the exception here -- it is the
+largest line in the budget and the only one with a strictly smaller alternative that still
+answers. After two failed restarts it steps down to the **largest** installed GGUF smaller
+than the current one (largest, so as little as possible is lost), logs a WARNING naming the
+swap, and sends `keepalive` to the dashboard. It never steps back up: that is a judgement
+about quality, and it is yours.
+
+Measured on a real fault, 2026-10-06, with Qwen3-4B selected on a full board:
+
+    19:11:31  llm is down; restarting it (attempt 1 of 4)
+    19:11:54  llm did not come back: exiting due to model loading error
+    19:11:57  llm is down; restarting it (attempt 2 of 4)
+    19:12:28  failed 2 restarts with Qwen3-4B; falling back to LFM2.5-2.6B-Q5_K_M
+    19:12:42  llm is back up
+
+Everything is bounded, and that is the point: four restarts then stop, two downgrades then
+stop, one component per poll. **A restart loop against a board that is simply full is
+worse than a stopped service** -- it burns the memory the next attempt needs. And two
+engines coming up together is the one case guaranteed to fail: whisper wants 1.3 GB
+contiguous while llama-server wants 2.8 GB.
+
+`UNKNOWN` is not `DOWN`. It is what robot-asr and robot-tts are for the first seconds
+after core starts, before they have connected; treating it as a fault restarted services
+that were coming up perfectly well.
+
+## The persona is knowledge, not a setting
+
+`persona` is on the **Knowledge** page, beside the documents it reasons over. It is the
+standing instruction carried into every turn, ahead of anything retrieved -- not a tuning
+dial, and the page shows what it costs: roughly a quarter of its character count in tokens
+of every prompt, re-sent each turn and almost entirely re-used by the prefix cache.
+
+`Setting.page` is the mechanism, and `tests/test_settings.py` pins the whole map: a
+control belongs on the page that can tell you whether its value is right. Models are on
+Memory, which prices them against the ceiling; everything that needs no such context stays
+on Config.
+
+## What a document actually contains
+
+Knowledge → click a document. Three views, and the honesty is the point:
+
+* **Document** -- the file when the source still names one on disk, and the chunks joined
+  back together when it does not. `raw_from` says which, because ingestion stores chunks
+  and not the source text: a rebuilt document has lost whatever the splitter dropped
+  between chunks and must not be read as the file. Uploads and typed facts are always
+  rebuilt.
+* **Chunks (JSON)** -- exactly what retrieval searches, each embedded separately.
+* **About** -- key terms, and on request a summary and entities.
+
+**The schema is `chunks(id, text, source, lang, added_at)` and there is no metadata
+column**, so everything in About is derived rather than stored. Key terms are a crude
+tf-idf across the store, and the field says `distinctive` or `frequent`: with fewer than
+three documents there is nothing to be distinctive against and the ranking collapses to
+raw frequency, which is how `dan`, `dari`, `adalah` and `yang` topped the first document
+tested. Hence a small stopword list -- small because this robot speaks exactly three
+languages, so it is a fixed auditable set rather than a dependency.
+
+**Entities and the summary come from the LLM already in memory, on request.** A NER model
+means `transformers` in the runtime path, which constraint 4 forbids and the budget cannot
+pay for; a regex over capitalised words would be worse, because it would be believed. The
+resident model does it for a few seconds of a GPU that is idle between turns. It is asked
+under a **JSON schema, not a prompt**: asking for JSON produced valid JSON and then ran
+out of budget mid-object, so `rfind("}")` found nothing and a perfectly good summary was
+reported as "the model did not return JSON". Under a grammar llama.cpp cannot emit
+anything else.
+
+## Hardware is chosen on the Config page, not in an env file
+
+Microphone, speaker and STM32 port are the first tab, because nothing else works if they
+are wrong, and all three fail the same way: **the device moved.**
+
+    mic_source     config/asr.env    PULSE_SOURCE    restarts robot-asr
+    speaker_sink   config/tts.env    PULSE_SINK      restarts robot-tts
+    serial_port    config/core.env   STM32_PORT      restarts robot-core
+
+Everything about the physical loop is on that one tab: which microphone and speaker,
+how loud (1% steps), how confidently the voice detector must hear speech before it
+triggers, how far above the room floor an utterance has to be, and whether noise
+cancelling is on. The last one is a plain **off/on** toggle -- `on` means `utterance`,
+cleaning what the voice detector kept; `config/asr.env` can still ask for `stream` to
+clean every frame. The control carries the measurement that made it default to off
+(+27% to +314% word errors), because someone who turns it on and sees transcription get
+worse should not have to go looking for why.
+
+The options are what is plugged in *now* -- `pactl list short sources/sinks` and a scan of
+`/dev/serial/by-id` plus `ttyACM*`/`ttyUSB*`/`ttyTHS*`. Two rules in that list:
+
+* **Monitor sources are never offered as a microphone.** Recording a monitor records the
+  robot's own voice, and under `interrupt` it then transcribes itself and cancels its own
+  reply.
+* **`/dev/serial/by-id` paths come first.** They survive a replug; `ttyACM0` and `ttyACM1`
+  swap with boot order, and on this board `ttyACM0` has been the USB soundcard.
+
+A configured value that is no longer present stays in the dropdown, selected, with the
+reason beside it -- so the page shows what is wrong rather than redrawing as though
+nothing were configured.
+
+**A pin is only a pin if the thing it names still exists.** `common/audio.py` was written
+to catch an unpinned default and then let the same class of failure through one step
+later: it trusted any non-empty `PULSE_SOURCE`. It now checks the name against what
+PulseAudio has and says which USB device you probably meant. See TROUBLESHOOTING.md --
+this cost a session on 2026-10-06.
+
 ## The Memory page is measured, not estimated
 
 Every line shows **Estimated** beside **Measured now**. The estimate is disk size times a
@@ -305,21 +523,43 @@ the robot stays THINKING, because it is.
 **`first_audio_ms` now measures the acknowledgement**, since that is genuinely the
 first sound. `first_chunk_ms` is still the answer's own latency.
 
-## A bare greeting is answered in the default language
+## The reply follows the language the person spoke, decided from their words
 
-"halo" and "hello" are the same sound, and so are "hai"/"hi" and "hei"/"hey". Whisper
-must pick one and picks on acoustics alone, so a greeting is the one utterance where its
-language id is close to a coin toss -- and being wrong does not just mistranslate the
-greeting: this turn's answer becomes the next turn's hint, so "hi" can pin an entire
-conversation to a language nobody chose.
+English in -> English out (and spoken with the English tag); Arabic in -> Arabic out;
+Indonesian in -> Indonesian out. Decided 2026-10-12 after the log showed English
+questions about "Pondok Modern Tazaka" tagged `id` by whisper, answered in Indonesian,
+or answered in English and then read with `lang="id"` (Indonesian accent).
 
-`language.is_general_greeting()` routes those to `CORE_DEFAULT_LANGUAGE` (id) instead of
-guessing. Two limits, both deliberate:
+* **Words beat whisper's id.** `language.heard()`: Arabic by script, English vs
+  Indonesian by function words (`classify`, fixed lists, no dependency). Whisper's id is
+  used only when the words say nothing (a bare name), then the previous turn, then
+  `CORE_DEFAULT_LANGUAGE`.
+* **The prompt is an order, not a hint** when the words decided
+  (`prompt.language_line`: "The person just spoke English. Reply in English.").
+* **Every chunk is spoken in the language it is written in** (`Orchestrator._speak_chunk`),
+  because the model's own `language` field arrives after the audio. A chunk of only
+  names keeps the previous chunk's language.
+* **Greetings follow their spelling.** "Hello?" is English, "Halo" Indonesian. Only a
+  greeting with nothing in its spelling ("assalamualaikum") still goes to the default.
+  This replaced the old rule that sent every bare greeting to Indonesian.
 
-* **Whole utterance only.** "hello, what is the address" carries its own language after
-  the comma and is left alone.
-* **Latin script only.** No English word looks like مرحبا, so an Arabic greeting is
-  answered in Arabic. Only the en/id collision is ambiguous, and only it is overridden.
+`language_source` is now one of `text`, `script`, `declared`, `text-override`,
+`script-override`, `asr`, `greeting`, `previous-turn`, `default`. To see a correction:
+`grep 'recogniser said' .cache/tmp/core.log`.
+
+## The face follows the turn, by rule
+
+Three phases, set in `src/robot/core/face.py` and not left to the model:
+
+    acknowledgement  (the spoken "okay, one moment")   blink
+    answering        (the reply)                       talking
+    idle             (nothing happening)               random, shown once
+
+`CORE_FACE_MODE=phases` (default) overwrites the reply JSON's `face` with the phase's face
+before the dashboard, the panel or the body see it; `model` gives it back to the model.
+The names go to the dashboard, the panel and the body as written; the LED matrix and
+the Slint panel own how `blink`, `talking` and the idle faces are drawn. The dashboard gets a
+`face` event `{phase, face}` for every change.
 
 ## Why the voice sounded uneven, and what actually fixed it
 

@@ -59,6 +59,18 @@ void robot_on_line(robot_t *r, const char *line)
      * lines still means the Jetson is running. */
     watchdog_line_received(&r->wd, now);
 
+    /* Discovery: robot-core pings every serial port at start to find the body. */
+    if (protocol_is_discovery_ping(line)) {
+        protocol_online(out, sizeof(out), "STM32");
+        emit(r, out);
+        return;
+    }
+    /* A reply line: the Jetson telling the body what the robot is saying and doing.
+     * Information, not a command -- it fed the watchdog above and gets no answer. */
+    if (protocol_is_reply_line(line)) {
+        return;
+    }
+
     if (!protocol_parse(line, &cmd)) {
         protocol_err(out, sizeof(out), cmd.verb, cmd.error);
         emit(r, out);

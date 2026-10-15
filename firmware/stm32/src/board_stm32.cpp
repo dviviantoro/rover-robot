@@ -104,9 +104,21 @@ int hw_set_face(const char *name)
         { 0x00, 0x42, 0x66, 0x00, 0x10, 0x30, 0x10, 0x00 },  /* thinking */
         { 0x00, 0x7E, 0x42, 0x00, 0x18, 0x24, 0x18, 0x00 },  /* listening */
         { 0x00, 0x66, 0x66, 0x00, 0x3C, 0x00, 0x3C, 0x00 },  /* speaking */
+        { 0x00, 0x00, 0x7E, 0x00, 0x00, 0x3C, 0x00, 0x00 },  /* blink: eyes shut */
     };
     static const char *NAMES[] = { "happy", "neutral", "sad",
-                                   "thinking", "listening", "speaking" };
+                                   "thinking", "listening", "speaking", "blink" };
+    /* The phase faces (robot.core.face): `talking` is the speaking mouth, and `random`
+     * is the idle face -- any of the six expressions, a different one each time. */
+    static uint32_t s_seed = 1u;
+    if (strcmp(name, "talking") == 0) {
+        name = "speaking";
+    } else if (strcmp(name, "random") == 0) {
+        static const char *IDLE[] = { "happy", "neutral", "thinking",
+                                      "listening", "speaking", "sad" };
+        s_seed = s_seed * 1664525u + 1013904223u + millis();
+        name = IDLE[(s_seed >> 16) % 6u];
+    }
     for (unsigned i = 0; i < sizeof(NAMES) / sizeof(NAMES[0]); ++i) {
         if (strcmp(NAMES[i], name) == 0) {
             Wire.beginTransmission(LED_MATRIX_I2C_ADDR);

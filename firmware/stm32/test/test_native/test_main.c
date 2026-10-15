@@ -105,6 +105,34 @@ static void test_watchdog_feeds_on_any_line(void)
     CHECK(watchdog_tripped(&r.wd) == 0, "a malformed line must still feed the watchdog");
 }
 
+/* ---- discovery and reply lines ----------------------------------------- */
+
+static void test_discovery_ping_is_answered_online(void)
+{
+    robot_t r; reset(&r);
+    robot_on_line(&r, "{PING_robot}");
+    CHECK(g_line_count == 1, "exactly one answer, got %d", g_line_count);
+    CHECK(strcmp(g_lines[0], "{\"device\":\"STM32\",\"status\":\"online\"}") == 0,
+          "wrong answer: %s", g_lines[0]);
+    g_line_count = 0;
+    robot_on_line(&r, "  {ping_ROBOT}  ");
+    CHECK(g_line_count == 1, "case and padding must not matter");
+}
+
+static void test_reply_lines_are_swallowed_and_feed_the_watchdog(void)
+{
+    robot_t r; reset(&r);
+    robot_on_line(&r, "{\"phase\":\"idle\",\"answer\":\"\",\"face\":\"random\"}");
+    CHECK(g_line_count == 0, "a reply line gets no answer, got %s",
+          g_line_count ? g_lines[0] : "");
+    g_now = 1400u;
+    robot_tick(&r, g_now);
+    CHECK(watchdog_tripped(&r.wd) == 0, "a reply line is still a line: it feeds the watchdog");
+    const int before = g_set_wheels_calls;
+    robot_on_line(&r, "{\"answer\":\"DRIVE 1 0 0 5000\"}");
+    CHECK(g_set_wheels_calls == before, "nothing inside a reply line is ever a command");
+}
+
 static void test_watchdog_survives_counter_wrap(void)
 {
     watchdog_t wd;
@@ -420,6 +448,8 @@ int main(void)
     test_watchdog_timing();
     test_watchdog_feeds_on_any_line();
     test_watchdog_survives_counter_wrap();
+    test_discovery_ping_is_answered_online();
+    test_reply_lines_are_swallowed_and_feed_the_watchdog();
     test_silence_during_drive_zeroes_the_motors();
     test_motion_does_not_auto_resume();
     test_drive_expiry_auto_stops();

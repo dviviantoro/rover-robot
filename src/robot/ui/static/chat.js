@@ -7,6 +7,7 @@
   const liveText = document.getElementById('live-text');
   const LANGS = { en: 'English', id: 'Bahasa Indonesia', ar: 'Arabic' };
 
+  let idleBlock = null;   // the one idle Reply JSON on screen; a new one replaces it
   let openReply = null;   // the robot turn currently being streamed into
 
   /* This page is the KEYBOARD. Voice turns belong to /headless and are not shown here.
@@ -16,7 +17,12 @@
    * point, what you type here is answered silently. See Orchestrator.start_turn. */
   const mine = (message) => (message.source || 'text') === 'text';
 
-  const scroll = () => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+  /* `#messages` is the scroller, not the window. The composer is pinned to the bottom of
+   * the viewport now, so the page itself does not scroll at all and `window.scrollTo`
+   * moved nothing -- every new reply landed below the fold and stayed there. */
+  const scroll = () => {
+    if (messages) messages.scrollTop = messages.scrollHeight;
+  };
 
   function addTurn(who, text, lang) {
     const node = el('div', { class: `turn ${who}` },
@@ -61,6 +67,7 @@
       case '_link': setLive(message.up); break;
       case 'transcript':
         openReply = null;
+        if (idleBlock) { idleBlock.remove(); idleBlock = null; }
         addTurn('you', message.text);
         break;
       case 'language':
@@ -87,6 +94,15 @@
         // The whole object the model produced, of which only `answer` was ever
         // spoken. Attached to the reply it belongs to, collapsed.
         if (openReply) openReply.append(Robot.replyFields(message));
+        else if (message.phase) {
+          // Acknowledgement and idle have no reply bubble to attach to.
+          const block = el('div', { class: 'idle-json' }, Robot.replyFields(message));
+          if (message.phase === 'idle') {
+            if (idleBlock) idleBlock.remove();
+            idleBlock = block;
+          }
+          messages.append(block);
+        }
         scroll();
         break;
       case 'turn_timeout':
@@ -101,7 +117,8 @@
         if (message.first_chunk_ms) bits.push(`answered after ${message.first_chunk_ms} ms`);
         if (message.retrieved) bits.push(`${message.retrieved} notes used`);
         if (message.tools) bits.push(`${message.tools} action${message.tools > 1 ? 's' : ''}`);
-        if (message.language_source && message.language_source !== 'declared') {
+        if (message.language_source
+            && !['declared', 'text', 'script', 'asr'].includes(message.language_source)) {
           bits.push(`language via ${message.language_source}`);
         }
         if (message.barged_in) bits.push('interrupted');

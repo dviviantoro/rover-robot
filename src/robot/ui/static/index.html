@@ -6,8 +6,6 @@
 <title>Robot</title>
 <link rel="stylesheet" href="/style.css">
 <style>
-  .hero { text-align: center; padding: 1rem 0 2rem; }
-  .hero h1 { font-size: 1.9rem; margin: 0.25rem 0 0.9rem; }
   #state-badge {
     display: inline-flex; align-items: center; gap: 0.45rem; font-size: 0.85rem; font-weight: 700;
     text-transform: uppercase; letter-spacing: 0.05em; padding: 0.4rem 1rem; border-radius: 999px;
@@ -15,116 +13,111 @@
   }
   #state-badge .dot { width: 0.5rem; height: 0.5rem; border-radius: 999px; background: var(--text-faint); transition: background 0.2s ease; }
 
-  .robot-wrap { display: flex; justify-content: center; margin-bottom: 0.5rem; height: 6.5rem; align-items: flex-end; }
-  .robot { position: relative; width: 5rem; animation: robot-float 3.2s ease-in-out infinite; }
-  @keyframes robot-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
-  .robot-antenna {
-    position: absolute; top: -0.9rem; left: 50%; width: 2px; height: 1rem; background: var(--accent);
-    transform-origin: bottom center; animation: antenna-sway 2.1s ease-in-out infinite;
-  }
-  .robot-antenna::after {
-    content: ""; position: absolute; top: -0.55rem; left: -0.27rem; width: 0.6rem; height: 0.6rem;
-    border-radius: 999px; background: var(--accent); box-shadow: 0 0 10px var(--accent);
-  }
-  @keyframes antenna-sway { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(7deg); } }
-  .robot-head {
-    width: 3.8rem; height: 2.9rem; margin: 0 auto; background: var(--surface); border: 2px solid var(--border);
-    border-radius: 0.9rem; box-shadow: var(--shadow); display: flex; align-items: center; justify-content: center; gap: 0.55rem;
-  }
-  .robot-eye { width: 0.5rem; height: 0.5rem; border-radius: 999px; background: var(--accent); animation: robot-blink 4.5s infinite; }
-  @keyframes robot-blink { 0%, 92%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.15); } }
-  .robot-body {
-    width: 4.6rem; height: 2.5rem; margin: 0.4rem auto 0; background: var(--surface); border: 2px solid var(--border);
-    border-radius: 0.85rem; box-shadow: var(--shadow-sm); display: flex; align-items: center; justify-content: center;
-  }
-  #robot-light { width: 0.65rem; height: 0.65rem; border-radius: 999px; background: var(--success); box-shadow: 0 0 9px var(--success); animation: robot-pulse 1.7s ease-in-out infinite; }
-  @keyframes robot-pulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
-  .robot-shadow { width: 3rem; height: 0.5rem; margin: 0.5rem auto 0; border-radius: 999px; background: var(--border); opacity: 0.6; }
+  /* Meter: one ratio against a limit. The fill carries severity and the track is a
+     lighter step of the SAME ramp, so the state reads across the whole bar. */
+  .meter-head { display: flex; align-items: baseline; justify-content: space-between;
+                gap: 1rem; margin-bottom: 0.5rem; }
+  .meter-head .num { font-size: 1.05rem; font-weight: 600; }
+  .meter { height: 0.55rem; border-radius: 999px; overflow: hidden;
+           background: var(--accent-soft); }
+  .meter .fill { height: 100%; border-radius: 999px; background: var(--accent);
+                 transition: width 0.3s ease, background 0.3s ease; }
+  .meter-legend { display: flex; flex-wrap: wrap; gap: 0.25rem 1.1rem;
+                  font-size: 0.78rem; color: var(--text-muted); margin-top: 0.55rem; }
+  .meter-legend b { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
 
-  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.9rem; margin-bottom: 1.5rem; }
-  @media (max-width: 30rem) { .grid { grid-template-columns: 1fr; } }
-  .nav-card {
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem;
-    aspect-ratio: 1.4 / 1; padding: 1rem; text-decoration: none; color: inherit; text-align: center;
-    transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
-  }
-  .nav-card:hover { text-decoration: none; border-color: var(--accent); box-shadow: var(--shadow); transform: translateY(-2px); }
-  .nav-card svg { width: 1.6rem; height: 1.6rem; color: var(--accent); }
-  .nav-card .title { font-weight: 650; font-size: 0.95rem; }
-  .nav-card .sub { font-weight: 400; font-size: 0.78rem; color: var(--text-muted); line-height: 1.3; }
+  /* Configured and Services, one segment: what is set, beside what is running. Two
+     cards made you compare across a gap; the question is always asked about both. */
+  .sys { display: grid; grid-template-columns: 1.15fr 1fr; gap: 1rem 1.75rem; }
+  @media (max-width: 52rem) { .sys { grid-template-columns: 1fr; } }
+  .sys h3 { margin: 0 0 0.6rem; font-size: 0.72rem; text-transform: uppercase;
+            letter-spacing: 0.06em; color: var(--text-faint); font-weight: 700; }
 
-  .svc-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.35rem 0; font-size: 0.86rem; }
-  .svc-row .sdot { width: 0.5rem; height: 0.5rem; border-radius: 999px; flex-shrink: 0; }
-  .svc-row .sname { flex: 1; }
-  #recent .turn { font-size: 0.88rem; margin-bottom: 0.55rem; line-height: 1.45; }
-  #recent .turn b { text-transform: capitalize; color: var(--accent); }
+  .mem-rows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+              gap: 0.3rem 1.2rem; margin-top: 0.75rem; font-size: 0.78rem; }
+  .mem-rows .r { display: flex; justify-content: space-between; gap: 0.6rem;
+                 border-bottom: 1px dashed var(--border); padding-bottom: 0.25rem; }
+  .mem-rows .r span:first-child { color: var(--text-muted); }
+  .mem-rows .r b { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+  .svc-row .srss { font-size: 0.74rem; color: var(--text-faint);
+                   font-variant-numeric: tabular-nums; }
+  .svc-row .sswap { font-size: 0.72rem; color: var(--warning-soft-text);
+                    font-variant-numeric: tabular-nums; }
+  .ka-note { font-size: 0.76rem; color: var(--warning-soft-text); margin-top: 0.6rem; }
+  .ka-note.bad { color: var(--danger); }
+
 </style>
 </head>
-<body>
-<nav class="topnav">
-  <a class="brand" href="/">Robot</a>
-  <div class="links">
-    <a href="/chat">Chat</a>
-    <a href="/headless">Headless</a>
-    <a href="/knowledge">Knowledge</a>
-    <a href="/memory">Memory</a>
-    <a href="/monitor">Monitor</a>
-    <a href="/logs">Logs</a>
-    <a href="/services">Services</a>
-    <a href="/config">Config</a>
-  </div>
-  <div class="right"><a class="btn-ghost" href="/logout">Sign out</a></div>
-</nav>
+<body data-page="dashboard">
+<nav class="sidebar"></nav>
 <div class="page">
-  <div class="hero">
-    <div class="robot-wrap" aria-hidden="true">
-      <div class="robot">
-        <div class="robot-antenna"></div>
-        <div class="robot-head"><div class="robot-eye"></div><div class="robot-eye"></div></div>
-        <div class="robot-body"><div id="robot-light"></div></div>
-        <div class="robot-shadow"></div>
-      </div>
-    </div>
-    <h1>Robot</h1>
+  <div class="page-head">
+    <h1>Dashboard</h1>
     <div id="state-badge"><span class="dot"></span><span id="state-text">connecting…</span></div>
   </div>
 
-  <div class="grid">
-    <a class="nav-card card" href="/chat">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-      <span class="title">Chat</span>
-      <span class="sub">Type instead of speaking</span>
-    </a>
-    <a class="nav-card card" href="/headless">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-      <span class="title">Headless</span>
-      <span class="sub">Mic &amp; speaker, live activity</span>
-    </a>
-    <a class="nav-card card" href="/knowledge">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-      <span class="title">Knowledge</span>
-      <span class="sub">What the robot remembers</span>
-    </a>
-    <a class="nav-card card" href="/memory">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 7V4M12 7V4M17 7V4M7 20v-3M12 20v-3M17 20v-3"/></svg>
-      <span class="title">Memory</span>
-      <span class="sub">Pick models, price the fit</span>
-    </a>
-    <a class="nav-card card" href="/logs">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>
-      <span class="title">Logs</span>
-      <span class="sub">Live records and debug</span>
-    </a>
-    <a class="nav-card card" href="/monitor">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
-      <span class="title">Monitor</span>
-      <span class="sub">Memory, CPU, GPU, thermals</span>
-    </a>
+  <div class="kpis">
+    <div class="card kpi"><div class="k">Memory in use</div>
+      <div class="v" id="kpi-mem">—</div><div class="s" id="kpi-mem-sub">of 7,620 MiB</div></div>
+    <div class="card kpi"><div class="k">Knowledge</div>
+      <div class="v" id="kpi-know">—</div><div class="s" id="kpi-know-sub">chunks stored</div></div>
+    <div class="card kpi"><div class="k">Tokens in</div>
+      <div class="v" id="kpi-in">—</div><div class="s" id="kpi-in-sub">prompt</div></div>
+    <div class="card kpi"><div class="k">Tokens out</div>
+      <div class="v" id="kpi-out">—</div><div class="s" id="kpi-out-sub">generated</div></div>
+  </div>
+
+  <div class="row2">
+    <div class="card">
+      <div class="card-head">
+        <h2>Board activity</h2>
+        <a href="/monitor" class="btn-ghost">Detail</a>
+      </div>
+      <div id="chart-load"></div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <h2>Tokens per turn</h2>
+        <span class="muted" style="font-size:0.76rem" id="tok-total">—</span>
+      </div>
+      <div id="chart-tokens"></div>
+    </div>
   </div>
 
   <div class="card">
-    <h2>Services <a href="/services" class="btn-ghost" style="float:right;font-size:0.78rem">Manage</a></h2>
-    <div id="services" class="muted">Connecting…</div>
+    <div class="card-head">
+      <h2>Memory</h2>
+      <a href="/memory" class="btn-ghost">Price a change</a>
+    </div>
+    <div class="meter-head">
+      <span class="muted" style="font-size:0.82rem" id="meter-caption">Measured now</span>
+      <span class="num" id="meter-num">—</span>
+    </div>
+    <div class="meter" id="meter-track"><div class="fill" id="meter-fill" style="width:0%"></div></div>
+    <div class="mem-rows" id="mem-rows"></div>
+    <div id="chart-mem" style="margin-top:0.9rem"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2>System</h2>
+      <span>
+        <a href="/config" class="btn-ghost">Config</a>
+        <a href="/services" class="btn-ghost">Services</a>
+      </span>
+    </div>
+    <div class="sys">
+      <div>
+        <h3>Configured</h3>
+        <div class="cfg" id="cfg"><span class="muted">Connecting…</span></div>
+      </div>
+      <div>
+        <h3>Running</h3>
+        <div id="services" class="muted">Connecting…</div>
+        <div id="ka-note"></div>
+      </div>
+    </div>
   </div>
 
   <div class="card" id="recent">

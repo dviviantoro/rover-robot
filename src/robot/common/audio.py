@@ -33,11 +33,22 @@ def _pactl(*args: str) -> str:
     return out.stdout if out.returncode == 0 else ""
 
 
+def endpoints(kind: str) -> list[str]:
+    """Every sink or source PulseAudio currently has, by name."""
+    _, _, list_cmd = _KIND[kind]
+    names = []
+    for line in _pactl("list", "short", list_cmd).splitlines():
+        parts = line.split("\t")
+        if len(parts) >= 2 and parts[1].strip():
+            names.append(parts[1].strip())
+    return names
+
+
 def resolve(kind: str, device: str) -> tuple[str, str | None]:
     """Describe where `device` leads, plus a warning if it is not pinned.
 
     Returns (description, warning). The warning is None when the endpoint is
-    pinned -- either by naming hardware directly or via PULSE_SINK/PULSE_SOURCE.
+    pinned to something that exists.
     """
     env_var, info_key, list_cmd = _KIND[kind]
     pinned = os.environ.get(env_var, "").strip()
@@ -46,6 +57,29 @@ def resolve(kind: str, device: str) -> tuple[str, str | None]:
         return f"{device} (ALSA device, not via PulseAudio)", None
 
     if pinned:
+        # A pin is only a pin if the thing it names is still there. This module was
+        # written to catch a silent default; it then let through a different failure one
+        # step later. Measured 2026-10-06: the USB headset was replaced with a stereo
+        # one, PulseAudio renamed the port `...mono-fallback` -> `...analog-stereo`, and
+        # the stale pin matched nothing. This one is not silent -- arecord dies with
+        # `PulseAudio: Unable to create stream: No such entity` -- but it is invisible,
+        # because that one useful line arrives buried in eighteen lines of ALSA
+        # hw_params dump, once, at startup, and robot-asr then exits for a supervisor
+        # that only exists under systemd. Under run_stack.sh it simply stays dead.
+        available = endpoints(kind)
+        if available and pinned not in available:
+            usb = [name for name in available
+                   if "usb" in name.lower() and not name.endswith(".monitor")]
+            suggestion = (f" Did you mean {usb[0]!r}?" if usb else "")
+            return (
+                f"{device} -> {pinned} (pinned by {env_var}, BUT THAT {kind.upper()} "
+                f"DOES NOT EXIST)",
+                f"{env_var} is set to {pinned!r} and PulseAudio has no such {kind}. "
+                f"Nothing will work: the stream cannot be created, so the robot is "
+                f"{'deaf' if kind == 'source' else 'mute'} until this is "
+                f"corrected.{suggestion} Available: "
+                f"{', '.join(available) or 'none'}.",
+            )
         return f"{device} -> {pinned} (pinned by {env_var})", None
 
     resolved = ""

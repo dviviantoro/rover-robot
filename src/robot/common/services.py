@@ -633,7 +633,7 @@ async def control(key: str, action: str, timeout: float = 150.0) -> dict:
     if ok:
         message = output.splitlines()[-1] if output else f"{service.label} {action}ed"
     else:
-        message = output.splitlines()[-1] if output else f"exit {proc.returncode}"
+        message = output.splitlines()[-1] if output else f"exit {code}"
         if "password" in message.lower() or "not allowed" in message.lower():
             message += "  (run: sudo scripts/bringup/setup_sudoers.sh)"
 

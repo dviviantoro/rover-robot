@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import logging
 import os
 import time
@@ -33,6 +34,29 @@ HEARTBEAT_PERIOD_S = 0.200      # protocol doc: PING every 200 ms
 WATCHDOG_TIMEOUT_S = 0.500      # what the STM32 enforces if we go quiet
 RESPONSE_TIMEOUT_S = 1.0
 RECONNECT_DELAY_S = 2.0
+PROBE_TIMEOUT_S = 0.5           # how long ping_ports waits for a port to answer
+
+# The discovery ping. Sent verbatim to every port; a board that is ours answers with a
+# JSON line whose `status` is "online", e.g. {"device":"ESP32","status":"online"}.
+PING_ROBOT = "{PING_robot}"
+PING_ROBOT_VERB = "PING_ROBOT"
+
+
+def is_online_reply(line: str) -> dict | None:
+    """The parsed object when `line` is a PING_robot answer, else None."""
+    line = line.strip()
+    if not line.startswith("{"):
+        return None
+    try:
+        data = json.loads(line)
+    except ValueError:
+        return None
+    if isinstance(data, dict) and str(data.get("status", "")).lower() == "online":
+        return data
+    return None
+
+# Must match PROTOCOL_MAX_LINE in firmware/stm32/include/protocol.h, newline excluded.
+MAX_LINE = 255
 
 # Must match firmware/stm32/include/protocol.h. If you change one, change both.
 LIMIT_VX = 1.0
@@ -195,10 +219,26 @@ class SerialLink:
         parts = line.split()
         kind = parts[0] if parts else ""
 
+        online = is_online_reply(line)
+        if online is not None:
+            waiters = self._pending.get(PING_ROBOT_VERB)
+            if waiters:
+                fut = waiters.popleft()
+                if not fut.done():
+                    fut.set_result(Response(ok=True, verb=PING_ROBOT_VERB, raw=line))
+            self._emit({"type": "serial_online", **online})
+            return
+
         if kind in ("OK", "ERR"):
             verb = parts[1].upper() if len(parts) > 1 else ""
             reason = " ".join(parts[2:]) if kind == "ERR" else None
             resp = Response(ok=(kind == "OK"), verb=verb, reason=reason, raw=line)
+            if kind == "ERR" and verb.startswith("{"):
+                # The body answering a reply line it does not parse yet. That is a
+                # firmware that predates `send_reply`, not a refusal -- and reporting
+                # it would have the robot apologise to the person for its own JSON.
+                log.debug("body does not read reply lines: %s", line)
+                return
             if kind == "ERR":
                 # Surface every rejection: the robot must not announce that it is
                 # driving forward while the STM32 has refused the command.
@@ -306,6 +346,47 @@ class SerialLink:
     async def gesture(self, name: str) -> Response:
         return await self._command(f"HAND {name}", "HAND")
 
+    async def send_reply(self, fields: dict) -> bool:
+        """Send a reply object down the wire as one compact JSON line.
+
+        The same object the dashboard shows -- phase (acknowledgement | answering | idle),
+        answer, language, foot_direction, foot_step, hand_movement, face, style -- so
+        the body sees exactly what the
+        person's screen does. Fire and forget: nothing waits on it, because it is
+        information for the body and not a command, and a body that is slow to read it
+        must never hold up speech.
+
+        ASCII only (`ensure_ascii`), because the link is ASCII and an Arabic answer must
+        arrive as \\uXXXX rather than crash the write. `answer` is the only unbounded
+        field, so it is the one trimmed when the line would not fit the firmware's
+        buffer; every body field survives.
+        """
+        if not self.connected:
+            log.debug("reply not sent, link is down: %s", fields.get("phase"))
+            return False
+        keep = {k: v for k, v in fields.items()
+                if k in ("phase", "answer", "language", "foot_direction", "foot_step",
+                         "hand_movement", "face", "style")}
+        text = str(keep.get("answer") or "")
+        while True:
+            keep["answer"] = text
+            line = json.dumps(keep, ensure_ascii=True, separators=(",", ":"))
+            if len(line) <= MAX_LINE or not text:
+                break
+            text = text[:max(0, len(text) - max(1, len(line) - MAX_LINE))]
+        if len(line) > MAX_LINE:
+            return False
+        self._emit({"type": "serial_tx", "line": line})
+        try:
+            self._write_line(line)
+        except (serial.SerialException, OSError, ConnectionError) as exc:
+            log.warning("could not send reply line: %s", exc)
+            return False
+        # INFO, one line per phase: `grep 'robot-serial: reply' .cache/tmp/core.log` is
+        # the answer to "did the body get it".
+        log.info("reply -> %s: %s", self.port, line)
+        return True
+
     async def request_status(self) -> Status | None:
         if not self.connected:
             return None
@@ -323,3 +404,82 @@ class SerialLink:
                 self.on_event(event)
             except Exception:
                 log.exception("serial event callback failed")
+
+
+# -- PING every port -------------------------------------------------------------
+def _probe(port: str, baud: int, timeout_s: float, resend_s: float = 0.4) -> dict:
+    """Open one port, send `{PING_robot}`, and report whatever comes back. Blocking.
+
+    The ping is sent again every `resend_s` until `timeout_s`. A board that resets when
+    its port is opened (most ESP32 dev boards) is still booting for the first second or
+    so, and a single ping written the instant the port opens lands in that gap and is
+    lost -- which reads as "silent", and is how a perfectly good body went unfound.
+    """
+    started = time.monotonic()
+    result = {"port": port, "ok": False, "reply": "", "ms": None, "error": None,
+              "via": "probe"}
+    try:
+        # exclusive: a port someone else holds is reported as busy, not shared into.
+        ser = serial.Serial(port, baud, timeout=0.05, write_timeout=0.5,
+                            rtscts=False, dsrdtr=False, exclusive=True)
+    except (serial.SerialException, OSError, ValueError) as exc:
+        result["error"] = str(exc)
+        return result
+    try:
+        ser.reset_input_buffer()
+        buf = b""
+        last = ""
+        deadline = started + timeout_s
+        next_ping = 0.0
+        # Read line by line until one is the answer: a board that has just been opened
+        # may print its boot banner first, and that is not the reply.
+        while time.monotonic() < deadline:
+            now = time.monotonic()
+            if now >= next_ping:
+                ser.write((PING_ROBOT + "\n").encode("ascii"))
+                ser.flush()
+                next_ping = now + resend_s
+            buf += ser.read(256)
+            while b"\n" in buf:
+                raw, _, buf = buf.partition(b"\n")
+                line = raw.decode("ascii", errors="replace").strip()
+                if not line:
+                    continue
+                last = line
+                if is_online_reply(line) is not None:
+                    result.update(ok=True, reply=line,
+                                  ms=round((time.monotonic() - started) * 1000))
+                    return result
+        result["reply"] = last
+        result["error"] = "answered, but not online" if last else "no answer"
+    except (serial.SerialException, OSError) as exc:
+        result["error"] = str(exc)
+    finally:
+        with contextlib.suppress(Exception):
+            ser.close()
+    return result
+
+
+async def ping_ports(ports: list[str], link: SerialLink | None = None,
+                     baud: int = 115200, timeout_s: float = PROBE_TIMEOUT_S) -> list[dict]:
+    """Send `{PING_robot}` to every port in `ports` at once and say who answered.
+
+    The port this process already holds is pinged THROUGH its link, never reopened --
+    a second open of the same device would steal bytes from the heartbeat's replies.
+    Everything else is opened briefly and exclusively. A device that is not the STM32
+    (the USB soundcard enumerates as ttyACM0 on this board) simply does not answer, and
+    that is the useful result: it says which port is the body.
+    """
+    own = os.path.realpath(link.port) if link is not None and link.port else None
+
+    async def one(port: str) -> dict:
+        if own is not None and link.connected and os.path.realpath(port) == own:
+            started = time.monotonic()
+            resp = await link._command(PING_ROBOT, PING_ROBOT_VERB)
+            return {"port": port, "ok": resp.ok,
+                    "reply": resp.raw,
+                    "ms": round((time.monotonic() - started) * 1000) if resp.ok else None,
+                    "error": None if resp.ok else resp.reason, "via": "link"}
+        return await asyncio.to_thread(_probe, port, baud, timeout_s)
+
+    return list(await asyncio.gather(*(one(p) for p in ports)))

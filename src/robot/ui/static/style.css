@@ -34,6 +34,14 @@
   --info: #175cd3;
   --violet: #7a5af8;
 
+  /* Chart series, in fixed order, never cycled. Three and not more: five hues inside one
+     lightness band cannot be told apart under deuteranopia -- measured with the dataviz
+     palette validator, the worst pair came out at ΔE 0.4. These three pass every check
+     in BOTH light and dark, across all pairs, so the same values serve both modes. */
+  --series-1: #2563eb;
+  --series-2: #d97706;
+  --series-3: #059669;
+
   --radius-sm: 0.55rem;
   --radius: 0.95rem;
   --radius-lg: 1.35rem;
@@ -100,41 +108,212 @@ body {
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: none; opacity: 0.85; }
 
-.page { max-width: 47rem; margin: 0 auto; padding: 0 1.25rem 5rem; }
-.page.wide { max-width: 64rem; }
+/* One width for every signed-in page. Pages used to pick their own -- 47rem, `wide`
+   64rem, `narrow` 30rem -- so moving between them resized the content column and the
+   sidebar's right edge was the only fixed thing on screen. The variants are kept as
+   no-ops rather than stripped from nine files; `narrow` still does something, because
+   a single column of form fields at 72rem is unreadable. */
+.page { max-width: 72rem; margin: 0 auto; padding: 0 1.5rem 5rem; width: 100%; }
+.page.wide { max-width: 72rem; }
 .page.narrow { max-width: 30rem; }
+/* Prose and chat bubbles get a reading measure inside the wide column -- uniform page
+   width is a layout decision, not a licence for 72rem-long lines of text. */
+.measure { max-width: 46rem; }
 
-/* ---------- top nav ---------- */
-.topnav {
-  position: sticky; top: 0; z-index: 30;
-  display: flex; align-items: center; gap: 1.25rem;
-  padding: 0.7rem 1.25rem; margin-bottom: 1.25rem;
-  background: color-mix(in srgb, var(--bg) 78%, transparent);
-  backdrop-filter: saturate(180%) blur(14px);
-  -webkit-backdrop-filter: saturate(180%) blur(14px);
-  border-bottom: 1px solid var(--border);
+/* A long explanation that is worth keeping and not worth reading twice. Used for the
+   paragraphs that explain something genuinely non-obvious -- why a choice can lag the
+   robot, why RSS overstates a model -- which tidying the page should fold away rather
+   than delete. */
+details.aside { margin: -0.5rem 0 1.25rem; }
+details.aside > summary { cursor: pointer; font-size: 0.8rem; color: var(--text-muted);
+                          list-style: none; user-select: none; width: fit-content; }
+details.aside > summary::-webkit-details-marker { display: none; }
+details.aside > summary::before { content: "\25B8  "; }
+details.aside[open] > summary::before { content: "\25BE  "; }
+details.aside > summary:hover { color: var(--text); }
+details.aside .hint { margin: 0.5rem 0 0; }
+
+/* The header strip at the top of a signed-in page: title, a status, and actions. It was
+   called `.hero` and defined three times privately -- and the landing page's `.hero` is a
+   different thing entirely (centred, huge), so the name was carrying two meanings. */
+.page-head { display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap;
+             padding: 0.25rem 0 1.25rem; }
+.page-head h1 { margin: 0; }
+.page-head .spacer, .page-head .right { margin-left: auto; }
+
+/* A segmented control. NOT called `.seg`: memory.html uses `.alloc .seg` for a segment of
+   the allocation bar, and a shared `.seg` with a border and inline-flex would have
+   silently taken that apart. */
+.tabs { display: inline-flex; border: 1px solid var(--border-strong);
+        border-radius: var(--radius-sm); overflow: hidden; }
+.tabs button { border: none; border-radius: 0; background: var(--surface);
+               padding: 0.42rem 0.7rem; font-size: 0.8rem; color: var(--text-muted); }
+.tabs button + button { border-left: 1px solid var(--border); }
+.tabs button.on { background: var(--accent-soft); color: var(--accent-soft-text); }
+.tabs button.dim { opacity: 0.5; }
+
+/* ---------- shared card components ----------
+   These lived in index.html's private <style>, which meant the Knowledge page used
+   `.kpis`, `.card-head` and `.cfg` and got none of them. A component used by more
+   than one page belongs in the shared sheet -- that is also the only way a card on
+   one page can be the same card on another. */
+  /* KPI row. Stat tiles rather than a chart: these are single current values, and a
+     one-bar bar chart of "15 chunks" tells you nothing a number does not. */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+          gap: 0.8rem; margin-bottom: 1rem; }
+  .kpi { padding: 0.95rem 1.05rem; }
+  .kpi .k { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.3rem; }
+  /* Proportional figures on purpose: tabular-nums gives every digit the width of a
+     zero, which reads loose at display sizes. Tabular is for columns, below. */
+  .kpi .v { font-size: 1.55rem; font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; }
+  .kpi .s { font-size: 0.76rem; color: var(--text-faint); margin-top: 0.2rem; }
+
+  /* Configured settings. A column of numbers, so tabular figures here. */
+  .cfg { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+         gap: 0.75rem 1.5rem; }
+  .cfg .row { display: flex; align-items: baseline; justify-content: space-between;
+              gap: 0.75rem; border-bottom: 1px dashed var(--border); padding-bottom: 0.35rem; }
+  .cfg .row .ck { font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
+  .cfg .row .cv { font-size: 0.82rem; font-weight: 550; text-align: right;
+                  overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+  .cfg .row .cv.off { color: var(--text-faint); font-weight: 400; }
+
+  /* Two cards per row where there is room; the system segment spans both. */
+  .row2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.9rem;
+          margin-bottom: 0.9rem; }
+  @media (max-width: 58rem) { .row2 { grid-template-columns: minmax(0, 1fr); } }
+
+  .card-head { display: flex; align-items: center; justify-content: space-between;
+               gap: 1rem; margin-bottom: 0.7rem; }
+  .card-head h2 { margin: 0; }
+  .card-head .btn-ghost { font-size: 0.78rem; padding: 0.3rem 0.7rem; }
+
+  .svc-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.35rem 0; font-size: 0.86rem; }
+  .svc-row .sdot { width: 0.5rem; height: 0.5rem; border-radius: 999px; flex-shrink: 0; }
+  .svc-row .sname { flex: 1; }
+  #recent .turn { font-size: 0.88rem; margin-bottom: 0.55rem; line-height: 1.45; }
+  #recent .turn b { text-transform: capitalize; color: var(--accent); }
+
+/* ---------- charts ----------
+   Thin marks, recessive grid, text in text tokens rather than the series colour. */
+.chart { position: relative; width: 100%; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart .grid-line { stroke: var(--border); stroke-width: 1; }
+.chart .axis-label { fill: var(--text-faint); font-size: 9px;
+                     font-variant-numeric: tabular-nums; }
+.chart .series-line { fill: none; stroke-width: 2; stroke-linejoin: round;
+                      stroke-linecap: round; }
+.chart .series-area { stroke: none; opacity: 0.12; }
+.chart .crosshair { stroke: var(--text-faint); stroke-width: 1; stroke-dasharray: 2 2; }
+.chart .hit { fill: transparent; }
+.chart-tip {
+  position: absolute; pointer-events: none; z-index: 5; opacity: 0;
+  transform: translate(-50%, -115%); transition: opacity 0.1s ease;
+  background: var(--surface); border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow);
+  padding: 0.4rem 0.55rem; font-size: 0.74rem; white-space: nowrap;
 }
-.topnav .brand {
-  font-weight: 700; font-size: 1rem; color: var(--text); letter-spacing: -0.02em;
-  display: inline-flex; align-items: center; gap: 0.5rem;
+.chart-tip .tt { color: var(--text-faint); margin-bottom: 0.15rem; }
+.chart-tip .tr { display: flex; align-items: center; gap: 0.35rem; }
+.chart-tip .tr b { font-variant-numeric: tabular-nums; }
+.chart-tip .sw { width: 0.5rem; height: 0.5rem; border-radius: 2px; flex-shrink: 0; }
+/* A legend is present for two or more series, always -- identity is never colour alone. */
+.legend-row { display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; font-size: 0.76rem;
+              color: var(--text-muted); margin-top: 0.4rem; }
+.legend-row span { display: inline-flex; align-items: center; gap: 0.35rem; }
+.legend-row .sw { width: 0.6rem; height: 0.6rem; border-radius: 2px; }
+.chart-empty { color: var(--text-faint); font-size: 0.8rem; padding: 1.2rem 0;
+               text-align: center; }
+
+/* ---------- shell: sidebar + page ----------
+ *
+ * `body[data-page]` is the signal, set by every signed-in page. The landing page and
+ * the login form deliberately do not set it, so they keep the plain centred body and
+ * no navigation to a place you cannot go yet.
+ */
+body[data-page] {
+  display: grid;
+  grid-template-columns: 15.25rem minmax(0, 1fr);
+  align-items: start;
+  min-height: 100vh;
 }
-.topnav .brand::before {
-  content: ""; width: 1.45rem; height: 1.45rem; border-radius: 0.5rem;
+
+.sidebar {
+  position: sticky; top: 0; z-index: 40;
+  height: 100vh; display: flex; flex-direction: column; gap: 0.35rem;
+  padding: 1.1rem 0.85rem 0.9rem;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  backdrop-filter: saturate(160%) blur(14px);
+  -webkit-backdrop-filter: saturate(160%) blur(14px);
+  border-right: 1px solid var(--border);
+}
+.sidebar .brand {
+  display: flex; align-items: center; gap: 0.55rem;
+  font-weight: 700; font-size: 1.02rem; color: var(--text);
+  letter-spacing: -0.02em; padding: 0.25rem 0.5rem 0.9rem;
+}
+.sidebar .brand:hover { text-decoration: none; }
+.sidebar .brand-mark {
+  width: 1.5rem; height: 1.5rem; border-radius: 0.5rem; flex-shrink: 0;
   background: linear-gradient(140deg, var(--accent), var(--violet));
   box-shadow: 0 2px 8px var(--accent-glow);
 }
-.topnav .links { display: flex; gap: 0.15rem; flex: 1; flex-wrap: wrap; }
-.topnav .links a {
-  color: var(--text-muted); font-size: 0.865rem; font-weight: 550;
-  padding: 0.4rem 0.75rem; border-radius: 999px;
+.nav-list { display: flex; flex-direction: column; gap: 0.1rem; overflow-y: auto; flex: 1; }
+.nav-group {
+  font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.07em; color: var(--text-faint);
+  padding: 0.95rem 0.6rem 0.3rem;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.5rem 0.6rem; border-radius: var(--radius-sm);
+  color: var(--text-muted); font-size: 0.885rem; font-weight: 550;
   transition: color 0.15s ease, background 0.15s ease;
 }
-.topnav .links a:hover { color: var(--text); background: var(--surface-2); }
-.topnav .links a.current {
+.nav-item:hover { color: var(--text); background: var(--surface-2); text-decoration: none; }
+.nav-item svg { width: 1.05rem; height: 1.05rem; flex-shrink: 0; opacity: 0.85; }
+.nav-item.current {
   color: var(--accent-soft-text); background: var(--accent-soft);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
 }
-.topnav .right { display: flex; align-items: center; gap: 0.5rem; }
+.nav-item.current svg { opacity: 1; }
+.nav-foot {
+  display: flex; flex-direction: column; gap: 0.5rem;
+  padding-top: 0.75rem; border-top: 1px solid var(--border);
+}
+.nav-link-state {
+  display: flex; align-items: center; gap: 0.45rem;
+  font-size: 0.78rem; color: var(--text-muted); padding: 0 0.6rem;
+}
+.nav-link-state .dot {
+  width: 0.45rem; height: 0.45rem; border-radius: 999px;
+  background: var(--text-faint); transition: background 0.2s ease;
+}
+.nav-foot .btn-ghost { justify-content: center; }
+
+body[data-page] > .page { padding-top: 1.6rem; margin: 0 auto; }
+
+/* The hamburger only exists below the breakpoint. */
+.nav-toggle { display: none; }
+
+@media (max-width: 52rem) {
+  body[data-page] { grid-template-columns: minmax(0, 1fr); }
+  .sidebar {
+    position: fixed; inset: 0 auto 0 0; width: 15.25rem;
+    transform: translateX(-100%); transition: transform 0.18s ease;
+    background: var(--surface);
+  }
+  body.nav-open .sidebar { transform: translateX(0); box-shadow: var(--shadow-lg, 0 10px 40px rgba(0,0,0,0.3)); }
+  .nav-toggle {
+    display: flex; align-items: center; justify-content: center;
+    position: fixed; top: 0.7rem; left: 0.7rem; z-index: 50;
+    width: 2.4rem; height: 2.4rem; padding: 0; border-radius: var(--radius-sm);
+    background: var(--surface); border: 1px solid var(--border); color: var(--text);
+    box-shadow: var(--shadow-sm);
+  }
+  .nav-toggle svg { width: 1.1rem; height: 1.1rem; }
+  body[data-page] > .page { padding-top: 3.6rem; }
+}
 
 /* ---------- headings ---------- */
 h1 { font-size: 1.65rem; font-weight: 700; letter-spacing: -0.03em; margin: 0.4rem 0 0.5rem; }
@@ -304,35 +483,29 @@ code {
 .reply-json[open] > summary::before { content: "\25BE  "; }
 .reply-json > summary:hover { color: var(--text-muted); }
 
-.rf-grid {
-  display: grid;
-  grid-template-columns: minmax(6.5rem, max-content) 1fr;
-  gap: 0.15rem 0.7rem;
-  margin: 0.5rem 0 0.4rem;
-  font-size: 0.78rem;
-}
-.rf-row { display: contents; }
-.rf-key {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: var(--text-muted);
-}
-.rf-val { color: var(--text); word-break: break-word; }
-/* A field that did nothing is dimmed, not hidden -- "foot_direction: none" is an
-   answer, and a table that changes shape every turn cannot be read at a glance. */
-.rf-row.idle .rf-key, .rf-row.idle .rf-val { color: var(--text-faint); }
-
 .rf-raw {
   margin: 0;
   padding: 0.5rem 0.6rem;
   background: var(--surface-2);
   border-radius: var(--radius-sm);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.72rem;
-  line-height: 1.45;
-  color: var(--text-muted);
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--text);
+  margin-top: 0.45rem;
+  overflow-x: auto;
   overflow-x: auto;
 }
 
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 }
+
+/* Sliders on the Config page: bright accent bar and solid dot, value beside it. */
+.slider-wrap { display: flex; align-items: center; gap: 0.75rem; }
+.slider-wrap .slider { flex: 1; min-width: 8rem; accent-color: var(--info); cursor: pointer; }
+.slider-read { margin: 0; min-width: 4.5rem; font-variant-numeric: tabular-nums; }
+
+/* Config -> Hardware: ping every serial port */
+.ping-card .ping-results { margin-top: 0.75rem; display: grid; gap: 0.35rem; }
+.ping-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; font-family: var(--mono, monospace); font-size: 0.85rem; }

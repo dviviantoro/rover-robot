@@ -47,7 +47,8 @@ import logging
 import os
 import signal
 import time
-from dataclasses import dataclass
+from collections import deque
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -65,6 +66,17 @@ DEFAULT_SOCKET = "run/tts.sock"
 # Piper runs at RTF 0.24-0.34 (M2), so one sentence takes well under a second. Anything
 # past this is a wedge, not slowness.
 SYNTH_TIMEOUT = 30.0
+
+# Playback lead. Measured 2026-10-14: the LLM and the synthesiser together produce
+# audio ~1.8x faster than it plays (150 tokens -> 18 s of speech in ~10 s), so on
+# average a reply cannot run dry -- but it STARTS with no runway, and the first one or
+# two pieces arrive just behind the sound that is already playing. The result was one or
+# two cut-outs of 0.5-2 s in nearly every reply, then smooth speech. Holding the piece
+# that restarts a dry speaker until this much audio is ready buys the runway once, at
+# the start, instead of paying for it as a stutter. 0 disables.
+LEAD_S = float(os.environ.get("TTS_LEAD_S", "1.5"))
+# ...but never for longer than this, so a slow LLM costs a bounded delay and not a hang.
+LEAD_MAX_WAIT_S = float(os.environ.get("TTS_LEAD_MAX_WAIT_S", "1.0"))
 
 # A sample line per language, for the dashboard's voice preview.
 PREVIEW_TEXT = {
@@ -90,6 +102,10 @@ class Chunk:
     # How many queued chunks were joined into this one synthesis call. 1 unless
     # batching coalesced it -- reported in `finished` so the effect is measurable.
     sentences: int = 1
+    # When the text reached this service. With `ready_at` on Rendered it splits a gap in
+    # the speech into "the LLM was late" and "synthesis was late", which are different
+    # problems with different fixes.
+    arrived_at: float = field(default_factory=time.monotonic)
 
 
 @dataclass
@@ -113,9 +129,17 @@ class Rendered:
     # Non-zero only on the last piece of a text chunk, so `finished` counts sentences
     # rather than however many buffers Piper happened to yield.
     sentences: int = 0
+    arrived_at: float = 0.0     # the text reached robot-tts
+    ready_at: float = 0.0       # the audio was handed to the player queue
 
 
 class TTSService:
+    # Class-level so a service built without __init__ (the pipeline tests do) still has
+    # them, and so the first piece of a turn can read them before anything has set them.
+    _play_end = 0.0
+    _underrun_s = 0.0
+    _underruns = 0
+
     def __init__(self, device: str, preload: bool, volume: float = 1.0) -> None:
         # Software gain rather than a mixer control: `amixer` needs a control name that
         # differs per soundcard, and PulseAudio sinks come and go. Scaling the samples
@@ -159,6 +183,13 @@ class TTSService:
         # model that simply spoke quickly.
         self._turn_chars = 0
         self._turn_calls = 0
+        # Gaps in the speech. `_play_end` is when the audio handed to the device so far
+        # runs out; a piece that is READY after that moment is a hole the listener hears
+        # as the voice cutting out. Measured rather than inferred, because the cause
+        # (slow LLM, slow synthesis, slow first clause) decides the fix.
+        self._play_end = 0.0
+        self._underrun_s = 0.0
+        self._underruns = 0
         self._generation = 0     # bumped on cancel so late work is discarded
         # Which speaker actually synthesises. Piper is one checkpoint per language;
         # Supertonic is one model that keeps the same voice across all three. Chosen by
@@ -283,7 +314,7 @@ class TTSService:
                 rate=self._prerender_rate or rate, label=selection.label,
                 lang=selection.lang, fell_back=selection.fell_back,
                 first_of_turn=first_of_turn, started_at=started_at,
-                sentences=chunk.sentences))
+                sentences=chunk.sentences, arrived_at=chunk.arrived_at))
             return
 
         try:
@@ -312,7 +343,8 @@ class TTSService:
                         rate=rate, label=selection.label, lang=selection.lang,
                         fell_back=selection.fell_back, first_of_turn=first_piece,
                         started_at=started_at,
-                        sentences=chunk.sentences if done else 0))
+                        sentences=chunk.sentences if done else 0,
+                        arrived_at=chunk.arrived_at))
                     first_piece = False
                 if done:
                     break
@@ -389,6 +421,7 @@ class TTSService:
         bounded -- but a barge-in during that wait must not resurrect the sentence, so
         the generation is re-checked on the way out.
         """
+        item.ready_at = time.monotonic()
         await self._audio.put(item)
         if item.generation != self._generation:
             self._drain(self._audio)
@@ -396,8 +429,9 @@ class TTSService:
     # -- playback ---------------------------------------------------------
     async def run_player(self) -> None:
         """Drain rendered audio into one continuous `aplay`."""
+        ready: deque = deque()      # pieces taken for the lead buffer, still in order
         while True:
-            item = await self._audio.get()
+            item = ready.popleft() if ready else await self._audio.get()
             try:
                 if isinstance(item, tuple):          # (generation, None) = speak_end
                     generation, _ = item
@@ -406,6 +440,8 @@ class TTSService:
                     continue
                 if item.generation != self._generation:
                     continue                          # cancelled while queued
+                if not ready and self._device_is_dry(item):
+                    await self._build_lead(item, ready)
                 await self._play(item)
             except asyncio.CancelledError:
                 raise
@@ -413,16 +449,60 @@ class TTSService:
                 log.exception("playback worker error")
                 await self._reset()
 
+    @staticmethod
+    def _piece_s(item: Rendered) -> float:
+        return (len(item.pcm) // 2) / item.rate if item.rate else 0.0
+
+    def _device_is_dry(self, item: Rendered) -> bool:
+        """True when this piece would restart a speaker that has run out of audio.
+
+        Never the first piece of a turn: that is time-to-first-audio, and holding it
+        would add the lead to the number the person feels most. The restart AFTER the
+        acknowledgement, and after any later gap, is where a runway is worth building.
+        """
+        if LEAD_S <= 0 or item.first_of_turn or self._play_end <= 0.0:
+            return False
+        return time.monotonic() >= self._play_end - 0.05
+
+    async def _build_lead(self, item: Rendered, ready: deque) -> None:
+        """Wait, boundedly, for enough audio to be ready that playback will not stutter.
+
+        Takes further pieces off the queue into `ready` (in order) until LEAD_S seconds
+        are buffered, the turn's text has ended, or LEAD_MAX_WAIT_S has passed.
+        """
+        buffered = self._piece_s(item)
+        deadline = time.monotonic() + LEAD_MAX_WAIT_S
+        while buffered < LEAD_S:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            try:
+                nxt = await asyncio.wait_for(self._audio.get(), timeout=remaining)
+            except asyncio.TimeoutError:
+                break
+            ready.append(nxt)
+            if isinstance(nxt, tuple):               # end of turn: nothing more is coming
+                break
+            if nxt.generation == self._generation:
+                buffered += self._piece_s(nxt)
+
+    PLAY_RETRIES = 5
+
     async def _play(self, item: Rendered) -> None:
         if item.first_of_turn:
             self._turn = item.turn_id
             self._turn_started = item.started_at
             self._audio_s = 0.0
             self._chunks = 0
+            self._underrun_s = 0.0
+            self._underruns = 0
+            self._play_end = 0.0
+        self._note_underrun(item)
         try:
             if not self.player.playing:
                 await self.player.start(sample_rate=item.rate)
             pcm = self._apply_gain(item.pcm)
+            fed_at = time.monotonic()
             announced = False
 
             async def announce() -> None:
@@ -440,13 +520,42 @@ class TTSService:
                             (time.monotonic() - item.started_at) * 1000),
                     })
 
-            await self.player.feed(pcm, on_first_slice=announce)
+            # aplay can die mid-reply: when the speaker runs dry between sentences it
+            # xruns, and if PulseAudio refuses the re-prepare it exits. Dropping the
+            # sentence there is the robot "speaking" with no voice, so resume the same
+            # audio on a fresh aplay instead, a bounded number of times.
+            attempt = 0
+            while True:
+                try:
+                    if attempt == 0:
+                        await self.player.feed(pcm, on_first_slice=announce)
+                    else:
+                        done = self.player.fed_bytes & ~1
+                        pcm = pcm[done:]
+                        await self.player.feed(
+                            pcm, on_first_slice=None if announced else announce)
+                    break
+                except NoAudioDevice as exc:
+                    attempt += 1
+                    if (item.generation != self._generation
+                            or attempt > self.PLAY_RETRIES or not pcm):
+                        raise
+                    log.warning("playback broke (%s); resuming on a new stream "
+                                "(attempt %d/%d)", str(exc).splitlines()[-1][:120],
+                                attempt, self.PLAY_RETRIES)
+                    await asyncio.sleep(0.15 * attempt)
+                    await self.player.start(sample_rate=item.rate,
+                                            unpin=attempt >= 2)
             if not announced:
                 # Empty PCM, or a player that writes nothing. `started` gates the
                 # microphone and the turn's own completion, so it must go out even when
                 # there was no audio to trigger it.
                 await announce()
-            self._audio_s += (len(pcm) // 2) / item.rate
+            piece_s = (len(pcm) // 2) / item.rate
+            self._audio_s += piece_s
+            # Audio runs out `piece_s` after it starts, or after the previous piece
+            # does, whichever is later.
+            self._play_end = max(self._play_end, fed_at) + piece_s
             self._chunks += item.sentences
         except NoAudioDevice as exc:
             # A cancel kills `aplay` by design, so the write we were in the middle of
@@ -460,6 +569,37 @@ class TTSService:
             await self.player.stop()
             await self._send({"type": "error", "id": item.turn_id,
                               "reason": f"audio: {exc}"})
+
+    def _note_underrun(self, item: Rendered) -> None:
+        """Record a hole in the speech and say what it was waiting for.
+
+        Called as a piece is picked up. The first piece of a turn is never a hole -- that
+        is time-to-first-audio, which has its own number. For every later piece, audio
+        that was READY after the previous one ran out means the listener heard silence.
+        """
+        if item.first_of_turn or self._play_end <= 0.0:
+            return
+        # What the listener heard: from the moment the audio ran out to the moment this
+        # piece actually starts -- which includes any time it was held for the lead.
+        now = time.monotonic()
+        gap = now - self._play_end
+        if gap < 0.15:          # under ~150 ms reads as a breath, not a break
+            return
+        self._underrun_s += gap
+        self._underruns += 1
+        late = item.ready_at - self._play_end       # >0: the piece itself was not ready
+        held = now - max(item.ready_at, self._play_end)
+        if item.arrived_at > self._play_end:
+            cause = (f"the text reached the speaker {item.arrived_at - self._play_end:.2f}s "
+                     f"after the audio ran out (the LLM, or the chunker, was late)")
+        elif late > 0:
+            cause = (f"the text had waited {self._play_end - item.arrived_at:.2f}s "
+                     f"but synthesis took {item.ready_at - item.arrived_at:.2f}s")
+        else:
+            cause = "the piece was ready in time"
+        if held > 0.05:
+            cause += f"; held {held:.2f}s to build a {LEAD_S:.1f}s lead"
+        log.warning("underrun: %.2fs of silence in the speech -- %s", gap, cause)
 
     def _apply_gain(self, pcm: bytes) -> bytes:
         """Scale a PCM chunk, clipping rather than wrapping.
@@ -487,6 +627,8 @@ class TTSService:
             "chunks": self._chunks,
             "chars": self._turn_chars,
             "calls": self._turn_calls,
+            "underrun_s": round(self._underrun_s, 3),
+            "underruns": self._underruns,
             "total_ms": round((time.monotonic() - (self._turn_started or 0)) * 1000),
         })
         self._turn_chars = 0

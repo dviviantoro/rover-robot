@@ -236,6 +236,51 @@ class Hit:
     distance: float
 
 
+# The three languages this robot speaks, and nothing more (PROJECT_BRIEF.md). A fixed
+# list rather than a stopword package: auditable at a glance, no dependency, and it only
+# has to be good enough to stop "and"/"dan"/"من" heading a list of key terms.
+STOPWORDS = frozenset("""
+the a an and or but if then than that this these those of in on at to for from by with
+is are was were be been being it its as not no nor so such only own same too very can
+will just also there their them they he she his her you your we our us me my
+dan atau tetapi jika maka dari di ke pada untuk dengan oleh yang adalah ialah itu ini
+tersebut akan sudah telah belum tidak bukan juga saja serta karena agar supaya dalam
+sebagai para kami kita saya anda mereka dia nya bisa dapat ada
+من في على الى عن مع هذا هذه ذلك التي الذي وهو وهي ان أن كان كانت قد لا ما هو هي
+كل بعد قبل بين عند او أو ثم لكن حتى لم لن انه أنه
+""".split())
+
+
+# Words that make a QUESTION a question without making it ABOUT anything: "what", "who",
+# "tell me", "hello", "thanks", "apa", "siapa", "ceritakan", "halo". Kept apart from
+# STOPWORDS on purpose -- those are grammar, these are conversation.
+#
+# Why it exists: keyword search ORs every token, so "Apa yang bisa kamu lakukan?" matched
+# four chunks of an unrelated document on `apa`, and "Ceritakan tentang dirimu secara
+# singkat" matched two on `tentang` and `secara`. Chit-chat injected knowledge it had no
+# use for, which cost prompt tokens on every turn and, worse, made the model answer small
+# talk out of a brochure. A bm25 score cannot separate them -- measured 2026-10-14, the
+# real question "Siapa pendiri pondok modern Tazakka?" scored -0.79 while that chit-chat
+# scored -1.0 and -1.94 -- so the filter is on WHAT is being asked about, not on how well
+# the words happened to match.
+CONVERSATIONAL = frozenset("""
+apa siapa kapan dimana mana kenapa mengapa bagaimana gimana berapa bisa mau ingin boleh
+tolong coba halo hai hei selamat pagi siang sore malam terima kasih makasih kabar baik
+oke ya iya tidak nggak enggak gak kamu kau anda aku saya dirimu dirinya lakukan
+melakukan ceritakan jelaskan sebutkan katakan beritahu tahu tentang soal mengenai secara
+singkat panjang sedikit banyak lagi dong deh sih kok kan lah nih
+what who when where why how which can could would should please tell about hello hi hey
+thanks thank okay ok yes yeah yep nope do does did you your yours
+مرحبا اهلا السلام عليكم كيف حالك هل ما من شكرا لماذا متى اين
+""".split())
+
+
+def content_tokens(text: str) -> list[str]:
+    """The words of `text` that say what it is ABOUT, lower-cased, in order."""
+    return [t for t in re.findall(r"\w+", text.lower(), flags=re.UNICODE)
+            if len(t) > 1 and t not in STOPWORDS and t not in CONVERSATIONAL]
+
+
 class Store:
     """sqlite-vec knowledge base. One file, no server."""
 
@@ -360,7 +405,9 @@ class Store:
         otherwise be a syntax error rather than a search. Tokens are OR-ed and quoted,
         so this matches "any of these words" and ranks by bm25.
         """
-        tokens = [t for t in re.findall(r"\w+", query, flags=re.UNICODE) if len(t) > 1]
+        # Content words only: a query with none ("Halo, apa kabar?") is small talk and
+        # retrieves nothing, rather than whatever happens to contain "apa".
+        tokens = content_tokens(query)
         if not tokens:
             return []
         match = " OR ".join(f'"{t}"' for t in tokens)
@@ -389,6 +436,87 @@ class Store:
         return self._db.execute(
             "SELECT source, COUNT(*) FROM chunks GROUP BY source ORDER BY 2 DESC"
         ).fetchall()
+
+    def document(self, source: str, limit: int = 400) -> dict:
+        """One source: its chunks, and the metadata that can honestly be derived.
+
+        **There is no metadata column, and that is the point of this docstring.** The
+        schema is `chunks(id, text, source, lang, added_at)` -- ingestion stores chunks
+        and nothing else. So everything here is computed from those rows: language as the
+        recogniser tagged it, counts, when it arrived, and the terms that actually
+        distinguish this document from the rest of the store.
+
+        Named entities and a summary are NOT here. A NER model is a `transformers`
+        dependency, which constraint 4 forbids in the runtime path and the 8 GB budget
+        could not pay for; inventing them from a regex and calling them entities would be
+        worse than leaving them out. The LLM already resident can do both on request --
+        that is `robot.core.app`'s job, not the store's, because it costs GPU time and
+        must be asked for rather than computed on every page load.
+        """
+        rows = self._db.execute(
+            "SELECT id, text, lang, added_at FROM chunks WHERE source = ? "
+            "ORDER BY id LIMIT ?", (source, limit)).fetchall()
+        total = self._db.execute(
+            "SELECT COUNT(*) FROM chunks WHERE source = ?", (source,)).fetchone()[0]
+        chunks = [{"id": r[0], "text": r[1], "lang": r[2], "added_at": r[3],
+                   "chars": len(r[1] or "")} for r in rows]
+        langs = sorted({c["lang"] for c in chunks if c["lang"]})
+        stamps = [c["added_at"] for c in chunks if c["added_at"]]
+        return {
+            "source": source,
+            "chunks": chunks,
+            "total_chunks": total,
+            "truncated": total > len(chunks),
+            "chars": sum(c["chars"] for c in chunks),
+            "languages": langs,
+            "added_first": min(stamps) if stamps else None,
+            "added_last": max(stamps) if stamps else None,
+            "terms": self._distinctive_terms(source),
+            # How much that ranking is worth. With one or two sources there is nothing to
+            # be distinctive AGAINST, and the page should not claim otherwise.
+            "terms_basis": "distinctive" if len(self.sources()) > 2 else "frequent",
+        }
+
+    def _distinctive_terms(self, source: str, k: int = 12) -> list[dict]:
+        """The words this document uses and the rest of the store does not.
+
+        Raw frequency returns "the", "and", "yang" for every document in every language,
+        which is why this weights by how RARE a term is elsewhere -- a crude tf-idf over
+        the two counts SQLite can give cheaply. The arithmetic handles that **only
+        once there is more than one document**: with a single source nothing is
+        "elsewhere", every term scores the same idf, and the ranking collapses back to raw
+        frequency -- which is how `dan`, `dari`, `adalah` and `yang` came out on top of
+        the first document tested. So there is also a small stopword list, and it is small
+        because this robot speaks exactly three languages (PROJECT_BRIEF.md): a fixed,
+        auditable set rather than a dependency.
+        """
+        import collections
+        import math
+        import re
+        rows = self._db.execute(
+            "SELECT text FROM chunks WHERE source = ?", (source,)).fetchall()
+        if not rows:
+            return []
+        # Unicode-aware: \w with re.UNICODE keeps Arabic and accented Latin together.
+        word = re.compile(r"[^\W\d_]{3,}", re.UNICODE)
+        here = collections.Counter()
+        for (text,) in rows:
+            here.update(w.lower() for w in word.findall(text or "")
+                        if w.lower() not in STOPWORDS)
+        if not here:
+            return []
+        docs = self._db.execute("SELECT COUNT(DISTINCT source) FROM chunks").fetchone()[0] or 1
+        out = []
+        for term, count in here.most_common(400):
+            elsewhere = self._db.execute(
+                "SELECT COUNT(DISTINCT source) FROM chunks "
+                "WHERE source != ? AND text LIKE ?", (source, f"%{term}%")).fetchone()[0]
+            idf = math.log((docs + 1) / (elsewhere + 1))
+            if idf <= 0:
+                continue
+            out.append({"term": term, "count": count, "score": round(count * idf, 2)})
+        out.sort(key=lambda t: -t["score"])
+        return out[:k]
 
     def forget(self, source: str) -> int:
         ids = [r[0] for r in

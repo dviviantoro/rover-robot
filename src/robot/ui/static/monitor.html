@@ -22,29 +22,11 @@
   .section-title { margin: 1.75rem 0 0.2rem; }
 </style>
 </head>
-<body>
-<nav class="topnav">
-  <a class="brand" href="/">Robot</a>
-  <div class="links">
-    <a href="/chat">Chat</a>
-    <a href="/headless">Headless</a>
-    <a href="/knowledge">Knowledge</a>
-    <a href="/memory">Memory</a>
-    <a href="/monitor" class="current">Monitor</a>
-    <a href="/logs">Logs</a>
-    <a href="/services">Services</a>
-    <a href="/config">Config</a>
-  </div>
-  <div class="right"><a class="btn-ghost" href="/logout">Sign out</a></div>
-</nav>
+<body data-page="monitor">
+<nav class="sidebar"></nav>
 <div class="page wide">
   <h1>Monitor</h1>
-  <p class="hint">
-    Live memory, CPU, GPU, power and thermals for the board, plus what each robot service
-    is using. Sampled by the dashboard itself, so leaving this page open costs the robot
-    nothing. Memory is drawn against the <b>real 7620 MiB ceiling</b>, not 8192 — the rest
-    is Tegra carveout and never available.
-  </p>
+  <p class="hint measure">The board as it is now, and what each service weighs.</p>
 
   <div class="statusline">
     <span class="dot" id="live-dot"></span><span id="live-text">connecting…</span>
@@ -100,11 +82,11 @@
   </div>
 
   <h2 class="section-title">Robot services</h2>
-  <p class="hint">
+  <details class="aside"><summary>Why RSS overstates a model</summary><p class="hint measure">
     RSS includes each model's memory-mapped weights, which the kernel can evict — the
     figure at the top excludes cache and is the real pressure. Watch for one row climbing
     on its own: that is what a leak looks like before it becomes an OOM kill.
-  </p>
+  </p></details>
   <div class="card">
     <table>
       <thead><tr><th>Service</th><th>PID</th><th class="num">Memory</th><th class="num">CPU</th><th class="num">Trend</th></tr></thead>

@@ -206,3 +206,32 @@ void protocol_stat(char *buf, uint32_t len,
              (double)battery_v, stalled ? "stall" : "ok",
              (double)temp_c, (unsigned long)uptime_ms);
 }
+
+int protocol_is_discovery_ping(const char *line)
+{
+    if (line == NULL) {
+        return 0;
+    }
+    while (*line && is_space(*line)) line++;
+    const char *want = PROTOCOL_DISCOVERY_PING;
+    while (*want) {
+        if (upper(*line++) != upper(*want++)) {
+            return 0;
+        }
+    }
+    return no_more_tokens(line);
+}
+
+int protocol_is_reply_line(const char *line)
+{
+    if (line == NULL) {
+        return 0;
+    }
+    while (*line && is_space(*line)) line++;
+    return *line == '{' && !protocol_is_discovery_ping(line);
+}
+
+void protocol_online(char *buf, uint32_t len, const char *device)
+{
+    snprintf(buf, len, "{\"device\":\"%s\",\"status\":\"online\"}", device);
+}

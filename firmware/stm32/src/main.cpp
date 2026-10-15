@@ -18,6 +18,7 @@ void board_stm32_control_tick(void);
 static robot_t g_robot;
 static char g_line[PROTOCOL_MAX_LINE];
 static size_t g_len;
+static bool g_overlong;     /* discarding the rest of a line that did not fit */
 
 void setup()
 {
@@ -32,15 +33,22 @@ void loop()
     while (Serial.available() > 0) {
         const char c = (char)Serial.read();
         if (c == '\n' || c == '\r') {
-            if (g_len > 0) {
+            if (g_overlong) {
+                g_overlong = false;     /* the newline ends the bad line; start clean */
+                g_len = 0;
+            } else if (g_len > 0) {
                 g_line[g_len] = '\0';
                 robot_on_line(&g_robot, g_line);
                 g_len = 0;
             }
+        } else if (g_overlong) {
+            /* still inside an overlong line: drop it. Its tail must never be parsed
+             * as if it were a line of its own. */
         } else if (g_len + 1 < sizeof(g_line)) {
             g_line[g_len++] = c;
         } else {
-            g_len = 0;    /* overlong line: resynchronise at the next newline */
+            g_overlong = true;
+            g_len = 0;
         }
     }
 

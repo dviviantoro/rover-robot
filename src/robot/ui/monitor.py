@@ -162,6 +162,44 @@ def _processes() -> list[dict]:
     return [found[label] for label, *_ in PROCESSES if label in found]
 
 
+class History:
+    """A few minutes of CPU, GPU and memory, sampled on a timer.
+
+    The dashboard draws these as sparklines, and a sparkline needs the past -- which the
+    per-request `snapshot()` does not have. Sampling on a timer rather than on each page
+    load also means the history is the BOARD's, not one browser's: open the page after a
+    model load and the spike that caused it is still there.
+
+    Fixed capacity and plain lists: at 2 s a side this is ~4 minutes, a few kilobytes,
+    and it must never be the thing that grows while the robot is left running.
+    """
+
+    CAPACITY = 120
+
+    def __init__(self, capacity: int | None = None) -> None:
+        self.capacity = capacity or self.CAPACITY
+        self.t: list[float] = []
+        self.cpu: list[float] = []
+        self.gpu: list[float | None] = []
+        self.mem: list[float] = []
+        self.swap: list[float] = []
+
+    def add(self, sample: dict) -> None:
+        self.t.append(round(sample.get("t", 0.0), 1))
+        self.cpu.append(round((sample.get("cpu") or {}).get("total", 0.0), 1))
+        load = (sample.get("gpu") or {}).get("load")
+        self.gpu.append(round(load, 1) if isinstance(load, (int, float)) else None)
+        self.mem.append(round((sample.get("memory") or {}).get("used_mib", 0.0)))
+        self.swap.append(round((sample.get("swap") or {}).get("used_mib", 0.0)))
+        for series in (self.t, self.cpu, self.gpu, self.mem, self.swap):
+            while len(series) > self.capacity:
+                series.pop(0)
+
+    def as_dict(self) -> dict:
+        return {"t": self.t, "cpu": self.cpu, "gpu": self.gpu,
+                "mem": self.mem, "swap": self.swap}
+
+
 def snapshot() -> dict:
     info = _meminfo()
     total = info.get("MemTotal", 7620.0)

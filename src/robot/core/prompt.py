@@ -18,7 +18,10 @@ from robot.core.language import LANGUAGES
 
 # The standing line from system-overview.md § Language routing. Together with the
 # per-turn instruction this is the entire multilingual logic -- no mode switching.
-STANDING_LANGUAGE_RULE = "Always reply in the same language the user just spoke."
+STANDING_LANGUAGE_RULE = (
+    "Always reply in the same language the user just spoke, entirely in that one "
+    "language. Never mix in Chinese, Japanese or Korean characters or words."
+)
 
 DEFAULT_PERSONA = (
     "You are a small friendly robot. You are speaking out loud, so keep replies short "
@@ -165,19 +168,51 @@ def trim_history(messages: list[dict[str, str]], max_chars: int) -> list[dict[st
     return head + middle + tail
 
 
+def language_line(tag: str, source: str | None = None) -> str:
+    """The per-turn language instruction, worded by how sure we are of `tag`.
+
+    The wording used to be one sentence -- "The previous turn was in X. If this one is
+    too: reply in X" -- because the hint WAS the previous turn's language. It is now
+    mostly the language the person is speaking this very turn, worked out from their
+    words, and describing that as "the previous turn" is untrue and weak: a small model
+    given Indonesian notes, Indonesian history and a polite maybe answered an English
+    question in Indonesian, which is the bug this exists to fix.
+
+      text, script   read off the transcript itself. Said as a fact and as an order,
+                     and it names the two things that pull a reply the wrong way --
+                     the notes and the model's own earlier replies.
+      asr            only the recogniser's id, which is wrong on a sentence built
+                     around a name. An order would be wrong whenever it is, so this one
+                     lets the words overrule it.
+      anything else  the previous turn's language, offered as a default, exactly as before.
+    """
+    lang = LANGUAGES[tag]
+    if source in ("text", "script"):
+        return (f"The person just spoke {lang.name}. {lang.instruction} That holds even "
+                f"if any notes or your earlier replies were in another language.")
+    if source == "asr":
+        return (f"The speech recogniser heard {lang.name}. {lang.instruction} If the "
+                f"person's words are plainly in another language, follow their words.")
+    return (f"The previous turn was in {lang.name}. "
+            f"If this one is too: {lang.instruction} "
+            f"If the user has switched language, follow the user.")
+
+
 def build_system_prompt(
     persona: str = DEFAULT_PERSONA,
     hint: str | None = None,
     tools: bool = True,
     context: list[str] | None = None,
     reply_format: str = "markers",
+    hint_source: str | None = None,
 ) -> str:
     """Persona + the standing language rule + the declaration instruction.
 
     `hint` carries the per-turn routing instruction from the table in
-    system-overview.md ("Reply in English", ...) when we have reason to expect a
-    language -- the previous turn's, since the ASR gives us nothing to go on. It is a
-    hint, not an order: the standing rule above it wins if the user switched language.
+    system-overview.md ("Reply in English", ...). `hint_source` says where it came from
+    (see `language.heard`) and therefore how firmly it is worded -- see `language_line`.
+    With no source it is the previous turn's language and a hint, not an order: the
+    standing rule above it wins if the user switched language.
     """
     parts = [persona]
 
@@ -210,11 +245,7 @@ def build_system_prompt(
     elif tools:
         parts.append(TOOL_RULE)
     if hint and hint in LANGUAGES:
-        parts.append(
-            f"The previous turn was in {LANGUAGES[hint].name}. "
-            f"If this one is too: {LANGUAGES[hint].instruction} "
-            f"If the user has switched language, follow the user."
-        )
+        parts.append(language_line(hint, hint_source))
     if reply_format == "json":
         # No declaration rule: `language` is a field of the object, constrained to the
         # three the robot speaks. Asking for `[lang:xx]` as well would put a tag inside

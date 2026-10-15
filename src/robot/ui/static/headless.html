@@ -6,22 +6,76 @@
 <title>Robot — Headless</title>
 <link rel="stylesheet" href="/style.css">
 <style>
-  .hero { text-align: center; padding: 1.25rem 0 0.5rem; }
+  /* Same trick as the chat: the newest turn sits at the bottom and the column grows
+     upwards. Not `justify-content:flex-end`, which clips an overflowing scroller. */
+  #conversation, #activity { display: flex; flex-direction: column; min-height: 100%; }
+  #conversation > *:first-child, #activity > *:first-child { margin-top: auto; }
   #state {
     display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.95rem; font-weight: 700;
     text-transform: uppercase; letter-spacing: 0.05em; padding: 0.45rem 1.1rem; border-radius: 999px;
     background: var(--surface-2); border: 1px solid var(--border); box-shadow: var(--shadow-sm);
   }
   #state .dot { width: 0.55rem; height: 0.55rem; border-radius: 999px; background: var(--text-faint); }
-  .device-line { color: var(--text-muted); font-size: 0.85rem; margin-top: 0.9rem; }
-  .subtext { color: var(--text-muted); font-size: 0.85rem; max-width: 36rem; margin: 0.75rem auto 0; }
+  .device-line { color: var(--text-muted); font-size: 0.8rem; margin: 0; }
   #banner { display: none; margin: 1.25rem 0; padding: 0.8rem 1rem; border-radius: var(--radius-sm); font-size: 0.88rem; text-align: left; }
   #banner.error { background: var(--danger-soft); color: var(--danger-soft-text); display: block; }
   #banner.ok { background: var(--accent-soft); color: var(--accent-soft-text); display: block; }
 
-  .panels { display: grid; grid-template-columns: 1.25fr 1fr; gap: 1rem; margin-top: 1.5rem; align-items: start; }
-  @media (max-width: 52rem) { .panels { grid-template-columns: 1fr; } }
-  .panel { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+  /* Pipeline phase colours. Three, not one per stage: five hues in one lightness band
+     cannot be told apart under deuteranopia -- measured with the palette validator, the
+     worst pair came out at ΔE 0.4, which is identical. These three pass every check in
+     BOTH light and dark, all pairs. Stage identity is carried by the glyph and the label
+     as well, so it never rests on colour alone. */
+  :root {
+    --st-input: var(--series-1);   /* hearing, transcribing */
+    --st-think: var(--series-2);   /* retrieving, generating */
+    --st-speak: var(--series-3);   /* speaking */
+  }
+
+  .panels { display: grid; grid-template-columns: 1.15fr 1fr; gap: 1rem;
+            margin-top: 1.25rem; align-items: stretch;
+            height: calc(100vh - 15rem); min-height: 26rem; }
+  @media (max-width: 62rem) {
+    .panels { grid-template-columns: 1fr; height: auto; }
+    .panel { height: 24rem; }
+  }
+  .panel { padding: 0; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+  /* Each panel scrolls on its own and sticks to the newest line, like a chat. The page
+     itself does not scroll, so neither column drags the other around. */
+  .panel-body { flex: 1 1 auto; overflow-y: auto; min-height: 0; scrollbar-gutter: stable; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 0.3rem 0.8rem; padding: 0.5rem 1.1rem;
+            border-bottom: 1px solid var(--border); font-size: 0.74rem;
+            color: var(--text-muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 0.3rem; }
+  .legend .g { font-size: 0.8rem; line-height: 1; }
+
+  /* ---- per-turn timing recap ---- */
+  .recap { margin-top: 0.5rem; border-top: 1px dashed var(--border); padding-top: 0.5rem; }
+  .recap > summary { cursor: pointer; font-size: 0.72rem; font-weight: 700;
+                     letter-spacing: 0.04em; text-transform: uppercase;
+                     color: var(--text-faint); list-style: none; user-select: none; }
+  .recap > summary::-webkit-details-marker { display: none; }
+  .recap > summary::before { content: "\25B8  "; }
+  .recap[open] > summary::before { content: "\25BE  "; }
+  .recap > summary:hover { color: var(--text-muted); }
+  .recap .total { color: var(--text-muted); font-weight: 600; text-transform: none;
+                  letter-spacing: 0; margin-left: 0.35rem; }
+  .stages { margin-top: 0.5rem; display: grid;
+            grid-template-columns: max-content 1fr max-content; gap: 0.2rem 0.6rem;
+            align-items: center; font-size: 0.76rem; }
+  .stages .sn { color: var(--text-muted); white-space: nowrap; }
+  .stages .sb { height: 0.4rem; border-radius: 999px; background: var(--surface-3);
+                overflow: hidden; }
+  .stages .sb i { display: block; height: 100%; border-radius: 999px;
+                  background: var(--st-input); }
+  .stages .sv { font-variant-numeric: tabular-nums; color: var(--text); font-weight: 600;
+                white-space: nowrap; }
+  /* The slowest stage is the answer to "what made this turn slow", so it is the one
+     thing in the table that is emphasised. */
+  .stages .slow .sn, .stages .slow .sv { color: var(--warning-soft-text); font-weight: 700; }
+  .stages .slow .sb i { background: var(--warning); }
+  .recap .note { font-size: 0.72rem; color: var(--text-faint); margin-top: 0.45rem; }
   .panel-head {
     display: flex; align-items: center; justify-content: space-between;
     padding: 0.9rem 1.1rem; border-bottom: 1px solid var(--border);
@@ -46,6 +100,32 @@
   .event { display: flex; align-items: flex-start; gap: 0.5rem; line-height: 1.4; }
   .event time { color: var(--text-faint); font-variant-numeric: tabular-nums; flex-shrink: 0; }
   .event .edot { width: 0.5rem; height: 0.5rem; border-radius: 999px; margin-top: 0.4rem; flex-shrink: 0; background: var(--text-faint); }
+  /* ---- one answering loop, one block ----
+     The activity list used to be a flat stream: a hundred lines in which the boundary
+     between "answering you" and "answering the next person" was a timestamp you had to
+     read. Each turn is now a bordered group with its own header, so the shape of one
+     loop -- hearing, transcribing, retrieving, thinking, speaking -- is visible at a
+     glance and the next one plainly starts somewhere else. */
+  .loop { border-left: 2px solid var(--border-strong); padding: 0.1rem 0 0.1rem 0.6rem;
+          margin: 0.75rem 0 0.25rem; }
+  .loop:first-child { margin-top: auto; }
+  .loop.live { border-left-color: var(--st-think); }
+  .loop.done { border-left-color: var(--st-speak); }
+  .loop-head { display: flex; align-items: baseline; gap: 0.5rem; font-size: 0.72rem;
+               font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+               color: var(--text-faint); margin-bottom: 0.25rem; }
+  .loop-head .what { text-transform: none; letter-spacing: 0; font-weight: 500;
+                     color: var(--text-muted); overflow: hidden;
+                     text-overflow: ellipsis; white-space: nowrap; }
+  .loop-head .ms { margin-left: auto; font-variant-numeric: tabular-nums;
+                   text-transform: none; letter-spacing: 0; color: var(--text-muted); }
+  /* Events that belong to no turn -- health, the serial link, an ingest -- stay outside
+     the blocks rather than being filed under whichever turn happened to be open. */
+  .bg-events { opacity: 0.85; }
+
+  /* Same footprint as .edot so stage rows and plain rows stay in one column. */
+  .event .eglyph { width: 0.9rem; text-align: center; flex-shrink: 0; font-size: 0.72rem;
+                   line-height: 1.5; }
   .event .etext { color: var(--text-muted); }
   .event.strong .etext { color: var(--text); font-weight: 600; }
   .event.wire .etext { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.76rem; color: var(--warning-soft-text); }
@@ -55,30 +135,12 @@
   .filters input { width: auto; }
 </style>
 </head>
-<body>
-<nav class="topnav">
-  <a class="brand" href="/">Robot</a>
-  <div class="links">
-    <a href="/chat">Chat</a>
-    <a href="/headless" class="current">Headless</a>
-    <a href="/knowledge">Knowledge</a>
-    <a href="/memory">Memory</a>
-    <a href="/monitor">Monitor</a>
-    <a href="/logs">Logs</a>
-    <a href="/services">Services</a>
-    <a href="/config">Config</a>
-  </div>
-  <div class="right"><a class="btn-ghost" href="/logout">Sign out</a></div>
-</nav>
-<div class="page wide center">
-  <div class="hero">
+<body data-page="headless">
+<nav class="sidebar"></nav>
+<div class="page wide">
+  <div class="page-head">
     <div id="state"><span class="dot"></span><span id="state-text">connecting…</span></div>
-    <p class="device-line">Listening on the robot's own microphone: <code id="device-name">the configured ALSA capture device</code></p>
-    <p class="subtext">
-      No button and no browser microphone permission — the robot listens through its own
-      hardware and answers through its own speaker. This page watches that physical loop:
-      the conversation on the left, and exactly what the pipeline is doing on the right.
-    </p>
+    <p class="device-line"><code id="device-name">the configured ALSA capture device</code></p>
   </div>
   <div id="banner"></div>
 
@@ -97,6 +159,13 @@
           <label><input type="checkbox" id="show-wire" checked> serial</label>
           <button id="clear-activity" class="btn-secondary">Clear</button>
         </div>
+      </div>
+      <div class="legend">
+        <span><b class="g" style="color:var(--st-input)">●</b> hearing</span>
+        <span><b class="g" style="color:var(--st-input)">◐</b> transcribing</span>
+        <span><b class="g" style="color:var(--st-think)">◆</b> retrieving</span>
+        <span><b class="g" style="color:var(--st-think)">▲</b> thinking</span>
+        <span><b class="g" style="color:var(--st-speak)">■</b> speaking</span>
       </div>
       <div class="panel-body"><div id="activity"></div></div>
     </div>

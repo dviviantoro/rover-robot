@@ -110,7 +110,11 @@ face = {"all": "browser dashboard on :8081",
 
 print(f"\nRobot, {mode} mode\n" + "-" * 62)
 show("Face", face)
-show("LLM", Path(os.environ.get("LLM_MODEL", "?")).name)
+# Through the same module the launcher uses, not os.environ: the dashboard's pin beats the
+# env file, and printing the file's value here is how the terminal said Qwen while the
+# dashboard said Llama.
+from robot.core import selection
+show("LLM", Path(selection.effective("llm") or os.environ.get("LLM_MODEL") or "?").name)
 ctx = int(os.environ.get("LLM_CTX", "2048"))
 prompt_budget = max(256, int(ctx * 0.66))
 pinned = saved.get("max_tokens")
@@ -123,7 +127,7 @@ if os.environ.get("WHISPER_REQUIRE_GPU", "1") == "1":
     gpu_req.append("STT")
 if os.environ.get("TTS_REQUIRE_GPU", "1") == "1" and os.environ.get("TTS_USE_GPU") == "1":
     gpu_req.append("TTS")
-show("Listening", f"whisper: {Path(os.environ.get('WHISPER_MODEL') or '?').name}")
+show("Listening", f"whisper: {Path(selection.effective('asr') or os.environ.get('WHISPER_MODEL') or '?').name}")
 tts = os.environ.get("TTS_ENGINE", "piper")
 show("Speaking", tts + (f": {os.environ.get('SUPERTONIC_VOICE', 'M1')}" if tts == "supertonic" else ""))
 show("Microphone", f"{saved.get('listen_mode', os.environ.get('CORE_LISTEN_MODE', 'no_interrupt'))}"
@@ -183,6 +187,9 @@ start() {
     exit 0
   fi
   strip_check
+  # Make config/*.env say what the dashboard chose, so the service that is started is
+  # the one the banner just printed and the page shows.
+  "$ROOT/.venv/bin/python" -m robot.core.selection
   "$ROOT/scripts/run_stack.sh" start "$@" ${PASS[@]+"${PASS[@]}"} || exit 1
 }
 

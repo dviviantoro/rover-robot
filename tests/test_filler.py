@@ -91,6 +91,11 @@ class TestTheWordsThemselves:
 
 
 class TestGreetingsGoToTheDefaultLanguage:
+    """`is_general_greeting` is unchanged: it still says which utterances are nothing but
+    a greeting. What changed on 2026-10-12 is what is DONE with that -- see
+    `TestAGreetingFollowsItsSpelling` below, and `language.heard`.
+    """
+
     @pytest.mark.parametrize("text", [
         "hello", "Hi", "hey", "Halo!", "hai", "hei", "Hey...",
         "selamat pagi", "Good morning", "apa kabar", "assalamualaikum",
@@ -125,6 +130,51 @@ class TestGreetingsGoToTheDefaultLanguage:
         orch = build()
         orch._asr_language = "ar"
         assert orch._language_hint("مرحبا") == "ar"
+
+
+class TestAGreetingFollowsItsSpelling:
+    """The rule that changed.
+
+    A bare greeting used to go to DEFAULT whatever it was, on the grounds that "halo" and
+    "hello" are the same sound. They are -- but whisper writes the greeting in the
+    spelling of the language it picked, so what reaches the orchestrator is "Hello?" or
+    "Halo?", and each is a word of exactly one language. The logs showed the cost of
+    ignoring that: "Hello?" arrived with whisper's id `en`, the model answered in English
+    and declared `en`, and the sentence was spoken with `lang="id"`.
+    """
+
+    def test_hello_is_english_even_when_whisper_said_indonesian(self):
+        orch = build()
+        orch._asr_language = "id"
+        assert orch._language_hint("Hello?") == "en"
+
+    def test_halo_is_indonesian_even_when_whisper_said_english(self):
+        orch = build()
+        orch._asr_language = "en"
+        assert orch._language_hint("Halo!") == "id"
+
+    def test_a_greeting_with_nothing_in_its_spelling_still_goes_to_the_default(self):
+        orch = build()
+        orch._asr_language = "en"
+        assert orch._language_hint("Assalamualaikum.") == lang_mod.DEFAULT
+
+    async def test_hello_is_acknowledged_in_english(self):
+        orch = build()
+        orch._asr_language = "en"
+        await orch._speak_filler(metrics(), "Hello?")
+        spoken = [s for s in orch.tts.sent if s["type"] == "speak"][0]
+        assert spoken["lang"] == "en"
+        assert spoken["text"] in lang_mod.FILLERS["en"]
+
+    async def test_an_english_sentence_about_a_name_is_acknowledged_in_english(self):
+        """The reported case: whisper said `id`, so the acknowledgement was Indonesian
+        and the answer English -- two languages in one turn."""
+        orch = build()
+        orch._asr_language = "id"
+        await orch._speak_filler(metrics(), "What is Pondok Modern Tazaka?")
+        spoken = [s for s in orch.tts.sent if s["type"] == "speak"][0]
+        assert spoken["lang"] == "en"
+        assert spoken["text"] in lang_mod.FILLERS["en"]
 
 
 class TestSpeakingTheAcknowledgement:

@@ -60,6 +60,56 @@ STOP
 WHEEL 0 5.0 1000           # bring-up: front-left only, 5 rad/s for 1 s
 ```
 
+### Reply line (Jetson → STM32, information, not a command)
+
+Once per phase of a turn, robot-core writes one compact ASCII JSON line -- the same
+object the dashboard shows as that phase's Reply JSON:
+
+| `phase` | when | `answer` | `face` |
+|---|---|---|---|
+| `acknowledgement` | the spoken "okay, one moment" starts (`CORE_FILLER=1`; a typed turn sends it with no words) | the phrase | `blink` |
+| `answering` | the model's reply is complete | what was said | `talking` |
+| `idle` | the turn is over, and once at startup and on every (re)connect | `""` | `random` |
+
+```
+{"phase":"acknowledgement","answer":"Oke, sebentar ya.","language":"id","foot_direction":"none","foot_step":0,"hand_movement":"none","face":"blink","style":"neutral"}
+{"phase":"answering","answer":"Halo! Ada yang bisa saya bantu?","language":"id","foot_direction":"none","foot_step":0,"hand_movement":"none","face":"talking","style":"neutral"}
+{"phase":"idle","answer":"","language":"id","foot_direction":"none","foot_step":0,"hand_movement":"none","face":"random","style":"neutral"}
+```
+
+| key | values |
+|---|---|
+| `phase` | `acknowledgement` \| `answering` \| `idle` |
+| `answer` | string, `\uXXXX`-escaped; the only unbounded field, trimmed to fit the line |
+| `language` | `id` \| `en` \| `ar` |
+| `foot_direction` | `none` `forward` `backward` `left` `right` `turn_left` `turn_right` |
+| `foot_step` | integer 0-10 |
+| `hand_movement` | `none` `wave` `point` `home` `nod` |
+| `face` | the phase's face under `CORE_FACE_MODE=phases`; the model's under `model` |
+| `style` | `neutral` `cheerful` `calm` `excited` `apologetic` |
+
+It starts with `{`, so it cannot be confused with a verb. The line is at most
+`PROTOCOL_MAX_LINE - 1` (255) bytes; the keys other than `answer` take at most 164 of
+them, so every body field always survives. Each phase also sends the matching
+`FACE <face>` command, for a body that does not read JSON yet. A body that does not
+parse the line answers `ERR {"...` unknown; robot-core ignores that, it is not reported
+as a refusal. Nothing waits on a reply line. With `CORE_FILLER=0` there is no
+acknowledgement and so no such line. Under `CORE_FACE_MODE=model` only `answering` is sent.
+
+**Firmware must be built from a `protocol.h` with `PROTOCOL_MAX_LINE 256`.** An older
+build (96) cuts the line and parses its tail as a command of its own; the simulator
+binary was stale in exactly this way. Rebuild with `tools/stm32_sim/build.sh`.
+
+### Pinging every port
+
+`ping_ports` (Config → Hardware → *Ping all ports*, WS message `ping_ports`) sends the
+literal line `{PING_robot}` to every serial device present. A board that is ours answers
+`{"device":"ESP32","status":"online"}`; anything whose reply has `status: online` counts,
+and the table shows how fast. The
+port robot-core already holds is pinged through its own link; the rest are opened
+briefly and exclusively. It exists to answer "which port is the body" when `ttyACM0`
+and `ttyACM1` have swapped.
+
 **Design note — bounded duration:** `DRIVE` always carries a duration and the STM32 auto-stops
 when it expires. Motion is never open-ended waiting for a `STOP` that might never arrive.
 

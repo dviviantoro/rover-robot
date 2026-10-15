@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import shutil
+import time
 
 log = logging.getLogger(__name__)
 
@@ -46,12 +48,54 @@ class Player:
         self.device = device
         self.sample_rate = sample_rate
         self._proc: asyncio.subprocess.Process | None = None
+        # Bytes of the buffer passed to the last feed() that the device accepted. When
+        # aplay dies mid-chunk the caller resumes from here on a fresh process rather
+        # than dropping the rest of the sentence.
+        self.fed_bytes = 0
+        # Silence keepalive: while a stream is open and nothing is being written, a few
+        # ms of zeros go in so aplay never underruns. An underrun is what makes aplay
+        # re-prepare the PulseAudio stream, and that re-prepare is where it used to die.
+        self._feeding = False
+        self._last_write = 0.0
+        self._pump: asyncio.Task | None = None
+
+    KEEPALIVE_S = 0.1          # silence per write
+    KEEPALIVE_IDLE = 0.12      # idle this long before any is written
+    KEEPALIVE_MAX = 30.0       # never pump silence longer than this without real audio
+
+    async def _keepalive(self, proc, rate: int) -> None:
+        silence = bytes(int(rate * self.KEEPALIVE_S) * 2)
+        started = time.monotonic()
+        try:
+            while proc is self._proc and proc.returncode is None and proc.stdin is not None:
+                await asyncio.sleep(self.KEEPALIVE_S / 2)
+                now = time.monotonic()
+                if self._feeding:
+                    started = now
+                    continue
+                if now - self._last_write < self.KEEPALIVE_IDLE:
+                    started = now if self._last_write > started else started
+                    continue
+                if now - started > self.KEEPALIVE_MAX:
+                    return
+                tr = proc.stdin.transport
+                if tr.is_closing() or tr.get_write_buffer_size() > 0:
+                    continue
+                proc.stdin.write(silence)
+                self._last_write = now
+        except (asyncio.CancelledError, BrokenPipeError, ConnectionResetError, OSError):
+            pass
+
+    def _stop_pump(self) -> None:
+        if self._pump is not None:
+            self._pump.cancel()
+            self._pump = None
 
     @staticmethod
     def available() -> bool:
         return shutil.which("aplay") is not None
 
-    async def start(self, sample_rate: int | None = None) -> None:
+    async def start(self, sample_rate: int | None = None, unpin: bool = False) -> None:
         """Open the device for a new stream.
 
         Retries briefly on "Device or resource busy": ALSA releases a PCM slightly
@@ -63,6 +107,11 @@ class Player:
             raise NoAudioDevice("aplay not found (install alsa-utils)")
         await self.stop()
         rate = sample_rate or self.sample_rate
+        env = dict(os.environ)
+        if unpin:
+            # The pinned sink is gone (unplugged, renamed, pulse restarted). Speak from
+            # the system default rather than not at all.
+            env.pop("PULSE_SINK", None)
 
         last = ""
         for attempt in range(self.OPEN_RETRIES):
@@ -72,6 +121,7 @@ class Player:
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.PIPE,
+                env=env,
             )
             # aplay only fails after it tries to open the device, so give it a moment
             # to die before assuming the stream is good.
@@ -80,11 +130,22 @@ class Player:
             except asyncio.TimeoutError:
                 self._proc = proc          # still alive: the device is ours
                 self.sample_rate = rate    # what feed() slices against
+                self._last_write = time.monotonic()
+                self._pump = asyncio.ensure_future(self._keepalive(proc, rate))
                 return
             err = b""
             if proc.stderr is not None:
                 err = await proc.stderr.read()
             last = err.decode(errors="replace").strip() or f"aplay exited {proc.returncode}"
+            if "no such entity" in last.lower() and not unpin and env.get("PULSE_SINK"):
+                # The pinned speaker is not there right now (USB audio dropped off the
+                # bus). Use the default sink for this stream; the pin applies again to
+                # the next stream, so it comes back by itself when the device does.
+                log.warning("sink %s is missing; speaking from the default sink",
+                            env.get("PULSE_SINK"))
+                env.pop("PULSE_SINK", None)
+                unpin = True
+                continue
             if "busy" not in last.lower():
                 raise NoAudioDevice(last)
             log.debug("audio device busy, retry %d/%d", attempt + 1, self.OPEN_RETRIES)
@@ -92,6 +153,15 @@ class Player:
         raise NoAudioDevice(last)
 
     async def feed(self, pcm: bytes, on_first_slice=None) -> None:
+        self.fed_bytes = 0
+        self._feeding = True
+        try:
+            await self._feed(pcm, on_first_slice)
+        finally:
+            self._feeding = False
+            self._last_write = time.monotonic()
+
+    async def _feed(self, pcm: bytes, on_first_slice=None) -> None:
         """Write PCM to the device, in slices short enough that the timeout still means
         what it says. Returns once the device has accepted all of it.
 
@@ -114,6 +184,7 @@ class Player:
                 # Bounded: if the device stops consuming, the pipe fills and this blocks
                 # forever. A stuck speaker must not wedge the conversation.
                 await asyncio.wait_for(proc.stdin.drain(), timeout=self.WRITE_TIMEOUT)
+                self.fed_bytes = min(len(pcm), start + step)
                 if on_first_slice is not None:
                     await on_first_slice()
                     on_first_slice = None
@@ -142,6 +213,7 @@ class Player:
         proc = self._proc
         if proc is None:
             return
+        self._stop_pump()
         if proc.stdin is not None:
             try:
                 proc.stdin.close()
@@ -167,6 +239,7 @@ class Player:
         tear the device down asynchronously, which is what makes the next open race.
         SIGKILL only as a fallback, since barge-in must not wait on a wedged process.
         """
+        self._stop_pump()
         proc, self._proc = self._proc, None
         if proc is None or proc.returncode is not None:
             return

@@ -27,6 +27,15 @@ class Outcome:
     """How a generation ended, filled in by `LlamaClient.stream`."""
 
     finish_reason: str | None = None
+    # Token counts as llama.cpp measured them, from the `timings` object on the final
+    # SSE chunk. Counting them here rather than estimating from characters: the prompt
+    # is the expensive half of a turn on a 2048-token window and the only honest number
+    # for it is the tokeniser's. `cached` is the prefix llama.cpp reused -- a persona
+    # that never changes is re-sent every turn and mostly re-used, and without this the
+    # prompt looks far more expensive than it is.
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    cached_tokens: int = 0
 
     @property
     def truncated(self) -> bool:
@@ -186,6 +195,18 @@ class LlamaClient:
                 except json.JSONDecodeError:
                     log.warning("undecodable SSE payload: %.120r", payload)
                     continue
+                # llama.cpp attaches its own `timings` to the final chunk. Not an
+                # OpenAI field, so it is read defensively -- a different server, or a
+                # build without it, simply leaves the counts at zero.
+                if outcome is not None and isinstance(event.get("timings"), dict):
+                    timings = event["timings"]
+                    for field, attr in (("prompt_n", "prompt_tokens"),
+                                        ("predicted_n", "completion_tokens"),
+                                        ("cache_n", "cached_tokens")):
+                        try:
+                            setattr(outcome, attr, int(timings.get(field) or 0))
+                        except (TypeError, ValueError):
+                            pass
                 for choice in event.get("choices", []):
                     # Sent on the final event for the choice, alongside an empty delta.
                     if outcome is not None and choice.get("finish_reason"):

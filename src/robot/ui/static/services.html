@@ -50,31 +50,11 @@
   }
 </style>
 </head>
-<body>
-<nav class="topnav">
-  <a class="brand" href="/">Robot</a>
-  <div class="links">
-    <a href="/chat">Chat</a>
-    <a href="/headless">Headless</a>
-    <a href="/knowledge">Knowledge</a>
-    <a href="/memory">Memory</a>
-    <a href="/monitor">Monitor</a>
-    <a href="/logs">Logs</a>
-    <a href="/services" class="current">Services</a>
-    <a href="/config">Config</a>
-  </div>
-  <div class="right"><a class="btn-ghost" href="/logout">Sign out</a></div>
-</nav>
+<body data-page="services">
+<nav class="sidebar"></nav>
 <div class="page wide">
   <h1>Services</h1>
-  <p class="hint">
-    Every process that makes up the robot: whether it is running, how long for, how much
-    memory it is holding, and a button to start, restart or stop exactly that one. Read
-    from the board itself rather than from the orchestrator — so this page still works
-    when the orchestrator is the thing that is down. Each row also names the model that
-    process actually has open, read from the process rather than from the config, and
-    says so when the two have drifted apart.
-  </p>
+  <p class="hint measure">Every process the robot is made of, and what it weighs. Stopping one is how you free memory for another.</p>
   <div class="supervisor">
     <span class="badge badge-info" id="supervisor-badge">…</span>
     <span id="supervisor-text">checking which supervisor is in charge…</span>
@@ -84,11 +64,11 @@
     <h2>Memory</h2>
     <div class="bar" id="mem-bar"><span style="width:0"></span></div>
     <div class="figures" id="mem-figures"><span>reading…</span></div>
-    <p class="hint" style="margin-bottom:0">
+    <details class="aside"><summary>Why starting a service can fail with memory free</summary><p class="hint measure" style="margin-bottom:0">
       Starting a model-loading service needs contiguous memory that CUDA on Tegra cannot
       reclaim from another process. If the LLM will not start, stop something first —
       that is what these buttons are for.
-    </p>
+    </p></details>
   </div>
 
   <div class="card">

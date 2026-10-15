@@ -69,6 +69,12 @@ class ASRService:
         # hearing while the VAD threshold is being tuned. Without it, setting that
         # threshold in a noisy room is guesswork.
         self._level_dbfs = -90.0
+        # Microphone amplification as a factor; 1.0 is the signal as captured.
+        self._gain = 1.0
+        # Follow the room: when on, the trigger (gate margin and detector threshold) is
+        # derived from the measured noise floor instead of taken from the settings.
+        self._auto = False
+        self._auto_checked = 0.0
         self._noise_floor_dbfs = -90.0
         self._peak_dbfs = -90.0
         # What the recogniser will actually hear, after suppression. Published beside
@@ -115,9 +121,14 @@ class ASRService:
                                     msg["log_level"])
                     changed = {}
                     for key in ("min_silence", "threshold", "noise_gate_db",
-                                "max_no_speech", "min_logprob"):
+                                "max_no_speech", "min_logprob", "mic_gain"):
                         if key in msg:
                             changed[key] = float(msg[key])
+                    if "auto_trigger" in msg:
+                        self._auto = str(msg["auto_trigger"]).strip().lower() in (
+                            "on", "1", "true")
+                        changed["auto_trigger"] = self._auto
+                        log.info("auto trigger %s", "on" if self._auto else "off")
                     if "denoise" in msg:
                         changed["denoise"] = str(msg["denoise"]).strip().lower()
                     if "min_silence" in changed or "threshold" in changed:
@@ -127,6 +138,9 @@ class ASRService:
                             self.vad_settings.threshold = changed["threshold"]
                         self.endpointer = Endpointer(self.vad_settings)
                         log.info("VAD reconfigured live: %s", changed)
+                    if "mic_gain" in changed:
+                        self._gain = max(0.0, min(2.0, changed["mic_gain"] / 100.0))
+                        log.info("microphone gain now %.0f%%", self._gain * 100)
                     if "noise_gate_db" in changed:
                         self.noise.settings.gate_margin_db = changed["noise_gate_db"]
                         log.info("noise gate now %+.1f dB over the room floor",
@@ -165,6 +179,7 @@ class ASRService:
                         "denoise_detail": self.noise.detail,
                         "denoise_rtf": round(self.noise.rtf, 4),
                         "noise_gate_db": self.noise.settings.gate_margin_db,
+                        "mic_gain": round(self._gain * 100),
                         "max_no_speech": self.noise.settings.max_no_speech,
                         "min_logprob": self.noise.settings.min_logprob,
                         "noise_rejects": self._noise_rejects,
@@ -191,6 +206,34 @@ class ASRService:
         else:
             self._noise_floor_dbfs += (dbfs - self._noise_floor_dbfs) * 0.0006
         self._peak_dbfs = max(dbfs, self._peak_dbfs - 0.35)
+
+    # A quiet room is about -70 dBFS on this hardware. Every dB the floor sits above that
+    # raises the gate by half a dB (6 -> 21 dB over 30 dB of room noise) and the detector
+    # threshold by 0.2 over the same span (0.50 -> 0.70): a noisy room needs speech to
+    # stand further out of it, and a detector that fires less easily.
+    QUIET_FLOOR_DBFS = -70.0
+
+    def _auto_step(self, now: float) -> None:
+        """Re-derive the trigger from the room, at most every two seconds.
+
+        Only between utterances: changing the detector threshold rebuilds the endpointer,
+        which drops an utterance in progress. Small moves are ignored (>= 1 dB, or one
+        0.05 threshold step) so the trigger does not chatter with the floor estimate.
+        """
+        if not self._auto or now - self._auto_checked < 2.0 or self.endpointer.speaking:
+            return
+        self._auto_checked = now
+        noise = max(0.0, min(30.0, self._noise_floor_dbfs - self.QUIET_FLOOR_DBFS))
+        margin = round(6.0 + noise * 0.5)
+        threshold = round((0.5 + noise / 30.0 * 0.2) * 20) / 20
+        settings = self.noise.settings
+        if abs(margin - settings.gate_margin_db) >= 1:
+            settings.gate_margin_db = float(margin)
+        if abs(threshold - self.vad_settings.threshold) >= 0.05 - 1e-9:
+            self.vad_settings.threshold = threshold
+            self.endpointer = Endpointer(self.vad_settings)
+            log.info("auto trigger: floor %.0f dBFS -> gate +%d dB, threshold %.2f",
+                     self._noise_floor_dbfs, margin, threshold)
 
     # Below this a microphone is not quiet, it is disconnected: real room tone on this
     # hardware sits around -50 dBFS, and true digital silence reads -90.
@@ -243,6 +286,8 @@ class ASRService:
             "denoise": self.noise.mode,
             "speech": bool(self.endpointer.speaking),
             "threshold": self.vad_settings.threshold,
+            "gate_db": self.noise.settings.gate_margin_db,
+            "auto": self._auto,
             "min_silence": self.vad_settings.min_silence_duration,
             "silent": self._check_silent(now),
             "device": self.device_name,
@@ -374,7 +419,13 @@ class ASRService:
         sees only the cleaned signal.
         """
         async for raw in source.frames():
+            if self._gain != 1.0:
+                # Before the meter and the floor, so what the dashboard shows is what the
+                # VAD and the recogniser get. Clipped, not wrapped: float here, but the
+                # recogniser's WAV encoder clips and so should the level it is judged by.
+                raw = np.clip(raw * self._gain, -1.0, 1.0)
             self._measure(raw)
+            self._auto_step(time.monotonic())
             if not self._gate_open:
                 # Still measured and still published, so the dashboard's level meter
                 # keeps moving and you can SEE the robot hearing itself -- it is simply
@@ -483,10 +534,14 @@ async def main() -> int:
     else:
         # Same resolution and the same warning as the speaker side -- an unpinned
         # default is how the robot went deaf for four milestones.
-        svc.device_name, unpinned = audio_endpoint.resolve("source", args.device)
+        svc.device_name, problem = audio_endpoint.resolve("source", args.device)
         log.info("audio input: %s", svc.device_name)
-        if unpinned:
-            log.warning("%s", unpinned)
+        if problem:
+            # A pin that names a missing device is fatal, not advisory: arecord cannot
+            # create the stream at all. Said at ERROR, before the attempt, so the
+            # actionable sentence is not the nineteenth line of an ALSA hw_params dump.
+            level = log.error if "DOES NOT EXIST" in svc.device_name else log.warning
+            level("%s", problem)
     if not args.wav and not capture.MicSource.available():
         log.error("arecord not found -- no microphone path available")
         return 1
@@ -509,7 +564,16 @@ async def main() -> int:
         if task is listener and task.exception():
             # system-overview.md: "ASR fails -> wake word still works, robot says it
             # didn't catch that." Exit non-zero so systemd restarts us.
-            log.error("capture stopped: %s", task.exception())
+            # arecord's failure is one useful line followed by an 18-line hw_params
+            # dump. Lead with the line that says what happened; the rest is at DEBUG.
+            detail = str(task.exception())
+            head = next((ln.strip() for ln in detail.splitlines() if ln.strip()), detail)
+            log.error("capture stopped: %s", head[:200])
+            if detail != head:
+                log.debug("arecord said in full: %s", detail)
+            log.error("the microphone is gone. Check `pactl list short sources` against "
+                      "PULSE_SOURCE in config/asr.env -- a replaced USB device gets a "
+                      "new PulseAudio name and the old pin then matches nothing.")
             rc = 1
 
     listener.cancel()

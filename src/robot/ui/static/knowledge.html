@@ -6,10 +6,31 @@
 <title>Robot — Knowledge</title>
 <link rel="stylesheet" href="/style.css">
 <style>
-  .kpi { display: flex; gap: 2rem; margin-bottom: 0.5rem; }
-  .kpi div { }
-  .kpi .n { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-  .kpi .l { font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); font-weight: 650; }
+  /* The page styles that are only this page's. Everything shared -- cards, KPI tiles,
+     the cfg grid -- comes from style.css so a card here is the same card as on the
+     dashboard. */
+  #persona { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+             font-size: 0.8rem; line-height: 1.55; resize: vertical; }
+  #doc-body { margin-top: 0.8rem; }
+  .doc-text, .doc-json {
+    margin: 0; max-height: 26rem; overflow: auto; padding: 0.7rem 0.85rem;
+    background: var(--surface-2); border-radius: var(--radius-sm);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.75rem; line-height: 1.55; white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .doc-json { white-space: pre; }
+  .terms { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.3rem; }
+  .term { font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 999px;
+          background: var(--accent-soft); color: var(--accent-soft-text); }
+  .term b { font-weight: 600; opacity: 0.65; margin-left: 0.3rem; }
+  .ent { margin-top: 0.7rem; }
+  .ent h4 { margin: 0 0 0.25rem; font-size: 0.72rem; text-transform: uppercase;
+            letter-spacing: 0.05em; color: var(--text-faint); }
+  .row-open { cursor: pointer; }
+  .row-open:hover td { color: var(--accent-soft-text); }
+</style>
+<style>
   #ingest-form { display: flex; flex-direction: column; gap: 0.6rem; }
   #drop {
     border: 2px dashed var(--border-strong); border-radius: var(--radius);
@@ -30,47 +51,74 @@
   .row-end { display: flex; justify-content: flex-end; gap: 0.5rem; }
 </style>
 </head>
-<body>
-<nav class="topnav">
-  <a class="brand" href="/">Robot</a>
-  <div class="links">
-    <a href="/chat">Chat</a>
-    <a href="/headless">Headless</a>
-    <a href="/knowledge" class="current">Knowledge</a>
-    <a href="/memory">Memory</a>
-    <a href="/monitor">Monitor</a>
-    <a href="/logs">Logs</a>
-    <a href="/services">Services</a>
-    <a href="/config">Config</a>
+<body data-page="knowledge">
+<nav class="sidebar"></nav>
+<div class="page wide">
+  <div class="page-head">
+    <h1>Knowledge</h1>
+    <span class="statusline" style="margin:0">
+      <span class="dot" id="live-dot"></span><span id="live-text">connecting…</span>
+    </span>
+    <span style="margin-left:auto"><button id="refresh" class="btn-secondary">Refresh</button></span>
   </div>
-  <div class="right"><a class="btn-ghost" href="/logout">Sign out</a></div>
-</nav>
-<div class="page">
-  <h1>Knowledge</h1>
-  <p class="hint">
-    What the robot can look things up in. Retrieval is cross-lingual: a document in one
-    of the three languages is findable by a question asked in another. Ingestion runs as
-    a background job and never blocks a conversation.
-  </p>
-  <div class="statusline">
-    <span class="dot" id="live-dot"></span><span id="live-text">connecting…</span>
-    <span class="controls"><button id="refresh" class="btn-secondary">Refresh</button></span>
+
+  <div class="kpis">
+    <div class="card kpi"><div class="k">Chunks</div>
+      <div class="v" id="chunks">—</div><div class="s">retrievable</div></div>
+    <div class="card kpi"><div class="k">Documents</div>
+      <div class="v" id="sources">—</div><div class="s">ingested</div></div>
+    <div class="card kpi"><div class="k">Queued</div>
+      <div class="v" id="pending">—</div><div class="s">waiting to embed</div></div>
   </div>
 
   <div class="card">
-    <div class="kpi">
-      <div><div class="n" id="chunks">–</div><div class="l">chunks</div></div>
-      <div><div class="n" id="sources">–</div><div class="l">sources</div></div>
-      <div><div class="n" id="pending">–</div><div class="l">queued</div></div>
+    <div class="card-head">
+      <h2>System prompt</h2>
+      <span class="muted" id="persona-state" style="font-size:0.76rem"></span>
+    </div>
+    <p class="hint measure">
+      The standing instruction carried into every turn, ahead of anything retrieved.
+    </p>
+    <textarea id="persona" rows="10" spellcheck="false"></textarea>
+    <div class="card-head" style="margin:0.6rem 0 0">
+      <span class="muted" id="persona-size" style="font-size:0.74rem"></span>
+      <span>
+        <button id="persona-reset" class="btn-ghost">Revert</button>
+        <button id="persona-save" class="btn-primary">Save</button>
+      </span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2>Documents</h2>
+      <span class="muted" id="doc-count" style="font-size:0.76rem"></span>
     </div>
     <table>
-      <thead><tr><th>Source</th><th class="num">Chunks</th></tr></thead>
-      <tbody id="source-rows"><tr><td colspan="2" class="muted">Nothing stored yet.</td></tr></tbody>
+      <thead><tr><th>Source</th><th class="num">Chunks</th><th class="num"></th></tr></thead>
+      <tbody id="source-rows"><tr><td colspan="3" class="muted">Nothing stored yet.</td></tr></tbody>
     </table>
   </div>
 
+  <div class="card" id="doc-card" hidden>
+    <div class="card-head">
+      <h2 id="doc-title">Document</h2>
+      <span>
+        <button id="doc-describe" class="btn-secondary">Describe with the LLM</button>
+        <button id="doc-close" class="btn-ghost">Close</button>
+      </span>
+    </div>
+    <div class="cfg" id="doc-meta"></div>
+    <div class="tabs" id="doc-tabs" style="margin-top:0.9rem">
+      <button data-view="raw" class="on">Document</button>
+      <button data-view="chunks">Chunks (JSON)</button>
+      <button data-view="about">About</button>
+    </div>
+    <div id="doc-body"></div>
+  </div>
+
   <div class="card">
-    <h2>Add knowledge</h2>
+    <div class="card-head"><h2>Add knowledge</h2></div>
     <div id="drop">
       <span class="big">Drop documents here</span>
       or click to choose a file
@@ -82,17 +130,14 @@
     <form id="ingest-form">
       <div>
         <label for="text">Type a fact or paste a document</label>
-        <textarea id="text" rows="4" placeholder="The workshop keeps spare rollers in the blue drawer under the bench."></textarea>
+        <textarea id="text" rows="3" placeholder="The workshop keeps spare rollers in the blue drawer under the bench."></textarea>
       </div>
       <div>
         <label for="path">…or a file path on the robot</label>
         <input type="text" id="path" placeholder="/media/jetson/DATA/robot-py/notes.txt">
       </div>
-      <div class="row-end"><button class="btn-primary" type="submit">Ingest</button></div>
+      <button class="btn-primary" type="submit">Ingest</button>
     </form>
-    <p class="hint" style="margin-top:0.75rem">
-      The robot also stores facts on its own when you tell it to remember something out loud.
-    </p>
   </div>
 </div>
 <script src="/app.js"></script>

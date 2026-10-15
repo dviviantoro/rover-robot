@@ -185,15 +185,26 @@ class TestWhichPageOwnsWhat:
         pages = {s["key"]: s["page"] for s in describe()}
         assert pages["serial_port"] == "config"
 
+    # The pages that own controls. A typo here hides a control from every page at once,
+    # so the set is written down rather than inferred.
+    PAGES = ("config", "memory", "knowledge")
+
     def test_every_setting_declares_a_page(self):
         for row in describe():
-            assert row["page"] in ("config", "memory"), row["key"]
+            assert row["page"] in self.PAGES, row["key"]
 
-    def test_every_hot_setting_is_still_on_config(self):
-        """Only the model choices moved. A live control has no budget to be priced."""
+    def test_a_control_lives_where_its_context_is(self):
+        """A setting belongs on the page that can tell you whether the value is right.
+
+        Model choices are on Memory, which prices them against the ceiling. The persona
+        is on Knowledge, beside the documents it reasons over -- it is the standing
+        instruction the robot carries into every turn, not a tuning dial. Everything that
+        needs no such context stays on Config.
+        """
+        expected = {"llm_model": "memory", "asr_model": "memory",
+                    "persona": "knowledge"}
         for row in describe():
-            if row["kind"] == "hot":
-                assert row["page"] == "config", row["key"]
+            assert row["page"] == expected.get(row["key"], "config"), row["key"]
 
 
 class TestRestartSettingsReportTheFileThatGovernsThem:
@@ -218,3 +229,24 @@ class TestRestartSettingsReportTheFileThatGovernsThem:
             if s.component == "serial":
                 continue
             assert s.env_file and s.env_key, f"{s.key} names no config file"
+
+
+class TestEveryTabHasSomethingInIt:
+    """Moving the STM32 port into Hardware left `body` as a tab with no controls.
+
+    The Config page renders a tab per group, so an empty group is a tab that opens on
+    nothing -- and nothing in the registry notices.
+    """
+
+    def test_no_group_is_empty(self):
+        from robot.core.settings import GROUPS, REGISTRY
+        used = {s.group for s in REGISTRY}
+        empty = [key for key, _, _ in GROUPS if key not in used]
+        assert not empty, f"tabs with no controls: {empty}"
+
+    def test_no_control_is_filed_under_a_tab_that_does_not_exist(self):
+        """The other direction: a typo in `group=` hides the control completely."""
+        from robot.core.settings import GROUPS, REGISTRY
+        known = {key for key, _, _ in GROUPS}
+        orphans = sorted({s.key for s in REGISTRY if s.group not in known})
+        assert not orphans, f"controls in no tab: {orphans}"

@@ -8,7 +8,10 @@ from __future__ import annotations
 
 import pytest
 
-from robot.core.language import LANGUAGES, resolve, looks_complete, strip_declaration
+from robot.core.language import (
+    LANGUAGES, _EN_WORDS, _ID_WORDS, classify, heard, resolve, looks_complete,
+    strip_declaration,
+)
 from robot.core.llm import fold_system
 from robot.core.language import DEFAULT, LISTEN, is_listenable
 from robot.core.prompt import (
@@ -62,10 +65,31 @@ class TestResolution:
         lang, how = resolve(None, "مرحبا، كيف يمكنني مساعدتك؟", None)
         assert (lang.tag, how) == ("ar", "script")
 
-    def test_latin_with_no_declaration_falls_back_to_previous_turn(self):
-        """English and Indonesian share a script, so nothing else can decide."""
-        lang, how = resolve(None, "Halo, apa kabar?", "id")
+    def test_words_with_no_language_in_them_fall_back_to_previous_turn(self):
+        """A name says nothing, so something else has to.
+
+        This test used to use "Halo, apa kabar?" and say "English and Indonesian share
+        a script, so nothing else can decide". That stopped being true on 2026-10-12:
+        the words decide, whenever they have function words in them. What is left for
+        the previous turn is text that has none.
+        """
+        lang, how = resolve(None, "Pondok Modern Tazaka.", "id")
         assert (lang.tag, how) == ("id", "previous-turn")
+        lang, how = resolve(None, "Pondok Modern Tazaka.", "en")
+        assert (lang.tag, how) == ("en", "previous-turn")
+
+    def test_the_words_decide_before_the_previous_turn_does(self):
+        lang, how = resolve(None, "Halo, apa kabar?", "en")
+        assert (lang.tag, how) == ("id", "text")
+        lang, how = resolve(None, "Where is the school?", "id")
+        assert (lang.tag, how) == ("en", "text")
+
+    def test_the_fallback_says_where_it_came_from(self):
+        """"previous-turn" for a language that was the PERSON's, taken from this very
+        utterance, is how a log line came to say a turn had been decided by the one
+        before it."""
+        lang, how = resolve(None, "Pondok Modern Tazaka.", "en", "asr")
+        assert (lang.tag, how) == ("en", "asr")
 
     def test_no_declaration_and_no_history_falls_back_to_the_default(self):
         """Which is Bahasa Indonesia -- the language this robot is used in.
@@ -87,6 +111,178 @@ class TestResolution:
         assert lang.instruction and lang.script in ("latn", "arab")
 
 
+class TestWhatIsWritten:
+    """`classify`: the language of a piece of text, from the words in it.
+
+    Every sentence here is one the robot actually heard, from `.cache/tmp/asr.log` on
+    2026-10-12, unless it says otherwise. Whisper called the English ones Indonesian
+    because each is built around "Pondok Modern Tazaka" -- which is the whole reason this
+    exists.
+    """
+
+    @pytest.mark.parametrize("text", [
+        "What is Pondok Modern Tazaka?",
+        "what the motto of Ponek Madron Tazaka",
+        "Hai Fatih, can you tell me what is Pondok Modern Tazaka?",
+        "Where is Pondok Moderna, Zaka?",
+        '"Where is Pondok Modern Taseka?"',
+        "Can you speak English?",
+        "Hi, how are you?",
+        "What's your name?",
+        "- That's my name.",
+        "Thank you.",
+        "Hello?",
+        "Pondok Modern Taseka is located in Bandar, Batang Regency, Central Java.",
+    ])
+    def test_english_is_english_whatever_names_are_in_it(self, text):
+        assert classify(text) == "en"
+
+    @pytest.mark.parametrize("text", [
+        "Bisa ngomong bahasa Inggris?",
+        "Bisa Anda jawab dengan bahasa Inggris?",
+        "Bisa menjawab dengan bahasa Inggris?",
+        "Apa nama kamu?",
+        "Apa mau tepon udah ngodernya saka?",
+        "Halo, apa kabar?",
+        "Terima kasih.",
+        "Pondok Modern Taseka berada di Bandar, Kabupaten Batang, Jawa Tengah.",
+    ])
+    def test_indonesian_is_indonesian(self, text):
+        assert classify(text) == "id"
+
+    @pytest.mark.parametrize("text", [
+        "مرحبا، كيف حالك؟",
+        "من فضلك تقدم قليلا ثم استدر إلى اليسار.",
+        "ما هو Pondok Modern Tazaka؟",       # an Arabic question around a Latin name
+    ])
+    def test_arabic_is_arabic(self, text):
+        assert classify(text) == "ar"
+
+    @pytest.mark.parametrize("text", [
+        "Pondok Modern Tazaka",
+        "pamoto pondok modern tasaka",       # whisper's rendering of a name, logged
+        "Waduh bontok waduh rentasaka",
+        "Assalamualaikum.",
+        "Bonjour tout le monde",
+        "Something ambiguous.",
+        "",
+        "... !? 123",
+    ])
+    def test_text_with_no_language_in_it_has_none(self, text):
+        """None is the answer, not a failure: the caller knows things this does not."""
+        assert classify(text) is None
+
+    def test_a_tie_is_not_a_guess(self):
+        """One side has to WIN. "What is bahasa Inggris?" is two and two."""
+        assert classify("What is bahasa Inggris?") is None
+
+    def test_an_arabic_sentence_with_one_english_word_is_still_arabic(self):
+        assert classify("كيف أقول the بالعربية") == "ar"
+
+    def test_the_two_lists_do_not_overlap(self):
+        """A word in both would be a vote for each, which is a vote for neither."""
+        assert not (_EN_WORDS & _ID_WORDS)
+
+    @pytest.mark.parametrize("word", [
+        "ok", "okay", "oke", "yes", "no", "sorry", "please", "thanks", "bye", "ya",
+        "english", "arab", "indonesia",
+    ])
+    def test_what_both_communities_say_inside_the_other_s_sentences_is_not_evidence(
+            self, word):
+        """"Sorry ya, aku telat" is Indonesian. Counting "sorry" for English would make
+        it a tie at best."""
+        assert word not in _EN_WORDS and word not in _ID_WORDS
+
+    def test_contractions_are_read_by_their_heads(self):
+        assert classify("don't") == "en"
+        assert classify("what's") == "en"
+
+
+class TestWhatWasSaid:
+    """`heard`: what the person spoke, with whisper's id as the thing the words correct.
+
+    Whisper's tag is the second argument in every row, and it is the WRONG one in the
+    first block -- those are real turns from 2026-10-12 that the robot answered in
+    Indonesian, or read out with an Indonesian accent.
+    """
+
+    @pytest.mark.parametrize("text", [
+        "What is Pondok Modern Tazaka?",
+        "what the motto of Ponek Madron Tazaka",
+        "Hai Fatih, can you tell me what is Pondok Modern Tazaka?",
+        "Where is Pondok Moderna, Zaka?",
+    ])
+    def test_the_words_correct_whisper_on_an_english_sentence_about_a_name(self, text):
+        assert heard(text, "id") == ("en", "text")
+
+    def test_arabic_script_corrects_whatever_whisper_said(self):
+        assert heard("ما هو Pondok Modern Tazaka؟", "id") == ("ar", "script")
+        assert heard("مرحبا، كيف حالك؟", "en") == ("ar", "script")
+
+    def test_indonesian_corrects_a_wrong_english_id(self):
+        assert heard("Bisa ngomong bahasa Inggris?", "en") == ("id", "text")
+
+    def test_whisper_is_believed_when_the_words_say_nothing(self):
+        assert heard("pamoto pondok modern tasaka", "id") == ("id", "asr")
+        assert heard("Pondok Modern Tazaka", "en") == ("en", "asr")
+
+    def test_then_the_previous_turn_then_the_default(self):
+        assert heard("Pondok Modern Tazaka", None, "en") == ("en", "previous-turn")
+        assert heard("Pondok Modern Tazaka", None, None) == (DEFAULT, "default")
+
+    def test_an_unmapped_whisper_language_is_not_a_language(self):
+        """`normalise` knows three. Spanish is not one of them, and must not be routed."""
+        assert heard("Pondok Modern Tazaka", "es", "id") == ("id", "previous-turn")
+
+    def test_a_greeting_follows_its_spelling(self):
+        """The rule that changed. "Hello?" was answered in Indonesian because it was a
+        greeting; whisper writes a greeting in the spelling of the language it picked, so
+        the spelling IS the evidence."""
+        assert heard("Hello?", "en") == ("en", "text")
+        assert heard("Hello?", "id") == ("en", "text")
+        assert heard("Halo!", "en") == ("id", "text")
+        assert heard("Good morning", "id") == ("en", "text")
+        assert heard("Selamat pagi", "en") == ("id", "text")
+
+    def test_a_greeting_with_nothing_in_its_spelling_still_goes_to_the_default(self):
+        """"assalamualaikum" is not English or Indonesian, and whisper's id for it is a
+        coin toss between the two."""
+        assert heard("Assalamualaikum.", "en") == (DEFAULT, "greeting")
+        assert heard("Assalamualaikum.", "ar") == (DEFAULT, "greeting")
+
+    def test_a_greeting_with_a_question_after_it_is_judged_on_the_question(self):
+        assert heard("hello, what is the address of the school", "id") == ("en", "text")
+        assert heard("halo, siapa pemimpin pondok ini", "en") == ("id", "text")
+
+
+class TestAClaimIsCheckedAgainstTheWords:
+    """The model's `language` field is a claim about its own reply. The reply is there to
+    be read, so the reply wins -- for English against Indonesian as it always did for
+    Arabic against Latin."""
+
+    def test_english_written_and_tagged_indonesian_is_english(self):
+        lang, how = resolve("id", "Pondok Modern Taseka is located in Bandar.", None)
+        assert (lang.tag, how) == ("en", "text-override")
+
+    def test_indonesian_written_and_tagged_english_is_indonesian(self):
+        lang, how = resolve("en", "Pondok Modern Taseka berada di Batang.", None)
+        assert (lang.tag, how) == ("id", "text-override")
+
+    def test_a_claim_about_text_with_no_language_in_it_stands(self):
+        lang, how = resolve("en", "Pondok Modern Tazaka.", "id")
+        assert (lang.tag, how) == ("en", "declared")
+
+    def test_arabic_claimed_for_latin_text_falls_to_the_conversation_then_the_default(self):
+        lang, how = resolve("ar", "Pondok Modern Tazaka.", "en")
+        assert (lang.tag, how) == ("en", "script-override")
+        lang, how = resolve("ar", "Pondok Modern Tazaka.", None)
+        assert (lang.tag, how) == (DEFAULT, "script-override")
+
+    def test_a_text_that_agrees_with_the_claim_is_declared(self):
+        lang, how = resolve("en", "Where is the school?", "id")
+        assert (lang.tag, how) == ("en", "declared")
+
+
 class TestSystemPrompt:
     def test_standing_rule_is_always_present(self):
         """system-overview.md requires this line in every system prompt."""
@@ -103,6 +299,39 @@ class TestSystemPrompt:
 
     def test_unknown_hint_is_ignored(self):
         assert "previous turn" not in build_system_prompt(hint="de")
+
+    @pytest.mark.parametrize("source", ["text", "script"])
+    def test_a_language_read_off_the_words_is_an_order_not_a_hint(self, source):
+        """The old line said "the previous turn was in English" about a language that
+        was this turn's, and offered it politely. A 4B model with Indonesian notes in the
+        prompt and Indonesian replies in its history ignored it and answered an English
+        question in Indonesian."""
+        prompt = build_system_prompt(hint="en", hint_source=source)
+        assert "The person just spoke English." in prompt
+        assert LANGUAGES["en"].instruction in prompt
+        assert "previous turn" not in prompt
+        assert "earlier replies" in prompt           # names what pulls it the wrong way
+
+    def test_the_recognisers_id_alone_is_a_hint_the_words_may_overrule(self):
+        """Whisper is wrong on exactly the sentences this fix is for, so an order built
+        on its id alone would be wrong whenever it is."""
+        prompt = build_system_prompt(hint="id", hint_source="asr")
+        assert "recogniser heard Bahasa Indonesia" in prompt
+        assert "follow their words" in prompt
+
+    @pytest.mark.parametrize("source", [None, "previous-turn", "default", "greeting"])
+    def test_anything_else_is_still_the_polite_default(self, source):
+        prompt = build_system_prompt(hint="id", hint_source=source)
+        assert "The previous turn was in Bahasa Indonesia." in prompt
+        assert "If the user has switched language, follow the user." in prompt
+
+    def test_the_instruction_comes_after_the_notes(self):
+        """M7: an English note nearest the question drags the reply into English. The
+        language line has to be the thing closest to it."""
+        prompt = build_system_prompt(
+            hint="id", hint_source="text", context=["An English note."],
+            reply_format="json")
+        assert prompt.index("An English note.") < prompt.index("The person just spoke")
 
 
 class TestHistory:
@@ -379,3 +608,20 @@ class TestFittingThePrompt:
         """Arabic runs fewer characters per token than Latin, and it is the language
         most likely to overflow. Guessing high is the safe direction."""
         assert CHARS_PER_TOKEN <= 3
+
+
+class TestOneLanguagePerReply:
+    """A reply that starts Arabic must not finish in Chinese."""
+
+    def test_chinese_inside_arabic_is_dropped(self):
+        from robot.core.language import strip_foreign_script
+        out = strip_foreign_script("بوندوك مودرن 是一所 مدرسة 位于巴当。")
+        assert out == "بوندوك مودرن مدرسة"
+
+    def test_latin_and_arabic_and_punctuation_survive(self):
+        from robot.core.language import strip_foreign_script
+        assert strip_foreign_script("Halo, apa kabar? 123") == "Halo, apa kabar? 123"
+        assert strip_foreign_script("مرحبا، كيف حالك؟") == "مرحبا، كيف حالك؟"
+
+    def test_standing_rule_forbids_cjk(self):
+        assert "Chinese" in STANDING_LANGUAGE_RULE

@@ -13,14 +13,26 @@ in the user's language -- so it knows the answer, we just have to ask for it. It
 `[lang:xx]` as the very first thing in its reply; `strip_declaration` removes that
 before a single character reaches TTS.
 
-Three layers, because an LLM will eventually not comply:
+Layers, because an LLM will eventually not comply:
 
-  1. the declared `[lang:xx]` tag, if present and known;
-  2. otherwise the script of the reply -- catches Arabic unambiguously;
-  3. otherwise the language of the previous turn, then English.
+  1. the words themselves -- Arabic by script, English and Indonesian by the function
+     words in them (`classify`). Nothing is claimed about text that has none;
+  2. otherwise the declared `[lang:xx]` tag, if present and known;
+  3. otherwise the language of the previous turn, then the default.
 
-Script is also used to *overrule* a declaration that contradicts it: if the model says
-`[lang:en]` and then writes Arabic, the Arabic is the truth and gets an Arabic voice.
+What is WRITTEN beats what is CLAIMED about it, in both directions: if the model says
+`[lang:en]` and then writes Arabic, the Arabic is the truth and gets an Arabic voice --
+and, since 2026-10-12, the same for English against Indonesian.
+
+## The same question, asked of the person
+
+`heard()` answers it for what the PERSON said, and it exists because whisper's own
+per-utterance language id is wrong in one very predictable way: an English sentence built
+around an Indonesian name ("Where is Pondok Modern Tazaka?") is called Indonesian, the
+robot then answers in Indonesian, and a reply that was written in English is read out
+with an Indonesian phonemiser. The decoded words are better evidence of what was spoken
+than the language token the decoder was handed, so they decide, and whisper's id is what
+is left when the words say nothing.
 """
 from __future__ import annotations
 
@@ -29,6 +41,7 @@ import os
 import logging
 import random
 import re
+import unicodedata
 from dataclasses import dataclass
 
 from robot.asr.recognizer import script_of
@@ -233,44 +246,241 @@ def is_general_greeting(text: str) -> bool:
     return bool(cleaned) and cleaned in _GREETINGS
 
 
+# ---- what a piece of text is written in -----------------------------------------
+#
+# English and Indonesian share a script, so the only thing that separates them is the
+# words. This is NOT a language-identification model and does not try to be one -- a
+# fixed list of the most frequent function words of each language, the same stance as
+# `rag.STOPWORDS`: auditable at a glance, no dependency, no RAM, and the robot speaks
+# exactly three languages so there is nothing to generalise to.
+#
+# What makes it usable rather than merely cheap:
+#
+#   * FUNCTION words only. Names are what whisper's own language id trips over
+#     ("Pondok Modern Tazaka" makes an English question sound Indonesian), and a name is
+#     never on this list, so a sentence is judged by the words AROUND the name.
+#   * The two lists are disjoint, and anything both communities say freely inside the
+#     other's sentences is left out -- ok, yes, no, sorry, please, thanks, bye. Those
+#     carry no information about which language the sentence is in.
+#   * It only speaks when one side wins outright. A tie, including 0-0, is "I cannot
+#     tell" and returns None, which is what hands the decision back to whisper's id and
+#     then to the previous turn. Guessing here would be worse than what it replaces.
+#
+# A word list is a heuristic and will be wrong about some sentence. Extend it from the
+# transcripts in `.cache/tmp/asr.log`, and add the sentence to tests/test_language.py.
+_EN_WORDS = frozenset("""
+the an and or but if of in on at to for from by with about into than as
+is are am was were be been being do does did have has had will would can could should
+shall may might must
+i me my mine you your yours he him his she her hers it its we us our ours they them
+their theirs
+this that these those there here what which who whom whose where when why how
+not don doesn didn isn aren wasn weren won wouldn couldn shouldn haven hasn hadn let
+hello hi hey hiya howdy greetings
+good morning afternoon evening
+thank tell say speak know want need
+some any all more most other such only same too very just also now
+name
+""".split())
+
+_ID_WORDS = frozenset("""
+yang dan di ke dari untuk dengan pada dalam oleh kepada tentang antara sampai hingga
+sejak ini itu tersebut sini situ
+adalah ialah merupakan ada akan sudah telah belum sedang masih pernah sering selalu
+tidak tak bukan jangan
+saya aku kamu anda engkau kau dia ia kita kami mereka beliau
+apa apakah siapa dimana kapan kenapa mengapa bagaimana gimana berapa
+bisa bisakah dapat boleh mau ingin harus perlu
+atau tetapi tapi karena jika kalau maka supaya sehingga bahwa
+juga saja hanya sangat sekali banget lagi dong nih sih deh kok iya
+tolong terima kasih makasih maaf silakan selamat pagi siang malam
+halo hai permisi
+nama namanya namamu bahasa inggris kabar baik
+jawab menjawab bicara berbicara ngomong bilang katakan jelaskan ceritakan
+gak nggak enggak udah aja yuk
+""".split())
+
+# Letters only. Splitting on the apostrophe is deliberate: "what's" -> what + s and
+# "don't" -> don + t, so the contraction heads are in the list above and the tails are
+# simply unknown words.
+_WORD = re.compile(r"[^\W\d_]+")
+
+
+def _letter_counts(text: str) -> tuple[int, int]:
+    """(Arabic letters, Latin letters). Same classification as `script_of`."""
+    arabic = latin = 0
+    for ch in text:
+        if not ch.isalpha():
+            continue
+        try:
+            name = unicodedata.name(ch)
+        except ValueError:
+            continue
+        if name.startswith("ARABIC"):
+            arabic += 1
+        elif name.startswith("LATIN"):
+            latin += 1
+    return arabic, latin
+
+
+def classify(text: str) -> str | None:
+    """The language a piece of text is WRITTEN in, or None when it does not say.
+
+    Arabic is decided by script. English against Indonesian is decided by which language
+    has more function words in the text, and only when one clearly does. A text made of
+    nothing but names, numbers or interjections has no language here, and returning None
+    for it is the point: the caller's fallbacks (whisper's id, the previous turn) know
+    things this does not.
+
+    An Arabic question around a Latin name -- "ما هو Pondok Modern Tazaka" -- has more
+    Latin letters than Arabic ones, so script alone would call it Latin. It has no
+    English or Indonesian function words either, which is what makes the Arabic ones the
+    only evidence there is.
+    """
+    arabic, latin = _letter_counts(text)
+    if arabic and arabic >= latin:
+        return "ar"
+    en = idn = 0
+    for word in _WORD.findall(text.lower()):
+        if word in _EN_WORDS:
+            en += 1
+        elif word in _ID_WORDS:
+            idn += 1
+    if en != idn:
+        return "en" if en > idn else "id"
+    if arabic >= 2:
+        return "ar"
+    return None
+
+
+def strip_foreign_script(text: str) -> str:
+    """Remove letters that are neither Latin nor Arabic (Chinese, Kana, Hangul, Cyrillic...).
+
+    The robot speaks three languages and two scripts. A small multilingual model drifts
+    into Chinese in the middle of an Arabic or Indonesian sentence, and a synthesiser
+    handed that either reads it with the wrong phonemiser or says nothing for half the
+    reply. Dropping those characters keeps the reply in the one language it started in.
+    """
+    out = []
+    for ch in text:
+        code = ord(ch)
+        if 0x3000 <= code <= 0x303F or 0xFF00 <= code <= 0xFFEF:
+            continue                       # CJK / full-width punctuation
+        if ch.isalpha():
+            try:
+                name = unicodedata.name(ch)
+            except ValueError:
+                continue
+            if not name.startswith(("LATIN", "ARABIC")):
+                continue
+        out.append(ch)
+    return re.sub(r"[ \t]{2,}", " ", "".join(out)).strip()
+
+
 def language_of(text: str) -> str | None:
     """The language of something a PERSON wrote, or None when it is not knowable.
 
-    Deliberately only as clever as it can be honest about. Arabic script means Arabic;
-    Latin script means English or Indonesian and this cannot tell which, so it says
-    nothing rather than guessing and pinning the reply to the wrong one. For spoken
-    turns the recogniser answers this properly -- this exists for typed ones, where
-    there is no recogniser and the alternative is "whatever the last turn was".
+    For typed turns, where there is no recogniser to ask. It used to be script only --
+    Arabic or nothing -- because Latin text could not be told apart; `classify` can, for
+    any text with function words in it, so a typed English question is no longer
+    answered in whatever language the previous turn happened to be.
     """
-    return "ar" if script_of(text) == "arab" else None
+    return classify(text)
+
+
+def heard(
+    text: str,
+    asr_tag: str | None = None,
+    previous: str | None = None,
+) -> tuple[str, str]:
+    """The language the person is speaking. Returns (tag, how); `how` is for logging/UI.
+
+    In order of trust:
+
+      text / script   what the transcript is written in. Decides outright.
+      greeting        a bare greeting with nothing in its spelling to go on --
+                      "assalamualaikum" -- goes to DEFAULT rather than to a coin toss.
+                      "hello" and "halo" never reach this: they are spelled, and the
+                      spelling is the evidence.
+      asr             whisper's own id for the utterance. Right far more often than not,
+                      and the only voice in the room for a sentence of pure names.
+      previous-turn   the language of the last reply.
+      default         CORE_DEFAULT_LANGUAGE.
+
+    **The greeting rule changed here (2026-10-12).** It used to send EVERY bare greeting
+    to DEFAULT, on the grounds that "halo" and "hello" are the same sound and whisper
+    picks between them on acoustics alone. True -- but whisper then writes the greeting
+    in the spelling of the language it picked, so "Hello?" reaching this function is an
+    English word, and routing it to Indonesian answered a person who had just spoken
+    English in the other language. The cost of the opposite error is one turn: nothing
+    here carries a greeting's language forward, because the next utterance is judged on
+    its own words.
+    """
+    written = classify(text)
+    if written:
+        return written, ("script" if written == "ar" else "text")
+    if is_general_greeting(text):
+        return DEFAULT, "greeting"
+    tag = normalise(asr_tag)
+    if tag:
+        return tag, "asr"
+    if previous in LANGUAGES:
+        return previous, "previous-turn"
+    return DEFAULT, "default"
 
 
 def resolve(
     declared: str | None,
     reply_text: str,
     previous: str | None = None,
+    previous_source: str = "previous-turn",
 ) -> tuple[Language, str]:
-    """Decide the reply language. Returns (language, how) -- `how` is for logging/UI."""
-    reply_script = script_of(reply_text)
+    """Decide the language of a reply, or of one chunk of it.
+
+    Returns (language, how) -- `how` is for logging/UI:
+
+      text / script            the words decided, with no declaration to disagree
+      declared                 the model's tag, and nothing in the words contradicts it
+      text-override / script-override
+                               the model's tag was contradicted by the words
+      previous_source          nothing said anything; `previous` is the fallback, and
+                               `previous_source` names where it came from
+      default                  not even that
+
+    `previous` is "what to assume when the text says nothing". It is the last reply's
+    language for a caller with nothing better, and the language the PERSON spoke for the
+    orchestrator, which is why the label is a parameter: calling the person's own
+    language "previous-turn" was how a log line came to say a turn had been decided by
+    the one before it.
+    """
+    written = classify(reply_text)
 
     declared = normalise(declared) or declared
     if declared in LANGUAGES:
         lang = LANGUAGES[declared]
-        # A declaration that contradicts the visible script is wrong. Trust the script.
-        if reply_script and reply_script != lang.script:
-            for candidate in LANGUAGES.values():
-                if candidate.script == reply_script:
+        # A declaration that contradicts the words is wrong. Trust the words.
+        if written and written != lang.tag:
+            how = "script-override" if "ar" in (written, lang.tag) else "text-override"
+            log.warning("model declared %r but the words are %r; using %r",
+                        declared, written, written)
+            return LANGUAGES[written], how
+        script = script_of(reply_text)
+        if script in ("latn", "arab") and script != lang.script:
+            # Declared Arabic, wrote Latin, and nothing in the words says which Latin
+            # language. Every choice is a guess; the least bad one is the language the
+            # conversation was already in, then the default.
+            for tag in (previous, DEFAULT):
+                if tag in LANGUAGES and LANGUAGES[tag].script == script:
                     log.warning("model declared %r but wrote %s script; using %r",
-                                declared, reply_script, candidate.tag)
-                    return candidate, "script-override"
+                                declared, script, tag)
+                    return LANGUAGES[tag], "script-override"
         return lang, "declared"
 
     if declared:
         log.warning("model declared unsupported language %r", declared)
 
-    # No usable declaration. Script separates Arabic; it cannot separate en from id.
-    if reply_script == "arab":
-        return LANGUAGES["ar"], "script"
+    if written:
+        return LANGUAGES[written], ("script" if written == "ar" else "text")
     if previous in LANGUAGES:
-        return LANGUAGES[previous], "previous-turn"
+        return LANGUAGES[previous], previous_source
     return LANGUAGES[DEFAULT], "default"

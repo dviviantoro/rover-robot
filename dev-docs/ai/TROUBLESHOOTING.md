@@ -1269,6 +1269,19 @@ another one against this protocol:
 The script now also prints RTF. Above 1.0 the robot cannot synthesise as fast as it
 speaks, and every chunk after the first arrives late.
 
+## I spoke English and it answered in Indonesian (or read English with an accent)
+
+Whisper's language id is wrong on English sentences built around an Indonesian name, and
+the TTS tag used to come from that id. Since 2026-10-12 the transcript's own words decide.
+Check the turn record: `language`, `language_source`, `asr_language`.
+
+    grep 'recogniser said' .cache/tmp/core.log      # words overruled whisper
+    grep 'robot-core: turn .*language_source' .cache/tmp/core.log
+
+If a sentence is still misrouted, its function words are missing from `_EN_WORDS` /
+`_ID_WORDS` in `src/robot/core/language.py` (or it is only names, so whisper's id
+stands). Add the word and the sentence to `tests/test_language.py`.
+
 ## The robot says "Baiklah, sebentar ya" and then answers in English
 
 Two different languages in one turn, and they come from two different decisions.
@@ -1392,3 +1405,93 @@ produced the text, so the same reply came out 19% longer or shorter turn to turn
 `whats_running.py` showed llm with 1234 MiB paged out, and that run reported 27 s to
 first audio and half the expected `audio_s`. Those readings are artefacts, not speech.
 `finished` now carries `chars` and `calls` so a short turn can be told from a fast one.
+
+## You replaced the USB mic/speaker and the robot went deaf
+
+Diagnosed 2026-10-06. A mono USB headset was swapped for a stereo one. Everything about
+the new device is fine — but PulseAudio names a port after its *profile*, so it stopped
+being
+
+    alsa_input.usb-Audio_Tools_USB_Audio_000001-02.mono-fallback
+
+and became
+
+    alsa_input.usb-Audio_Tools_USB_Audio_000001-02.analog-stereo
+
+`PULSE_SOURCE` in `config/asr.env` still held the old name, and a PulseAudio name that
+matches nothing does not fall back — it fails:
+
+    ALSA lib pcm_pulse.c:758:(pulse_prepare) PulseAudio: Unable to create stream:
+        No such entity
+    arecord: set_params:1416: Unable to install hw params:
+
+So the failure *was* reported. It was invisible anyway, for three reasons worth
+remembering: the one useful line arrived as the first of nineteen, the rest being an ALSA
+`hw_params` dump; it happened once, at startup; and robot-asr then exited for a supervisor
+that only exists under systemd, so under `run_stack.sh` it simply stayed dead.
+
+**Fix it from Config → Hardware.** The microphone, speaker and STM32 port are dropdowns of
+what is plugged in now, and a configured value that has gone missing stays selected with
+the reason next to it. From a terminal:
+
+    pactl list short sources          # what exists
+    grep PULSE_SOURCE config/asr.env  # what is configured
+
+Three things now make this loud instead of silent:
+
+* `common/audio.py` checks a pinned name against what PulseAudio actually has, and names
+  the USB device you probably meant. It used to trust any non-empty pin — it was written
+  to catch an unpinned *default* and let a stale *pin* through.
+* robot-asr says it at ERROR **before** opening the device, so the sentence is not the
+  nineteenth line of a hw_params dump.
+* `capture stopped:` now leads with arecord's first line and puts the dump at DEBUG.
+
+**A 2-channel device needs no special handling.** `capture.py` asks for `-c 1` and
+PulseAudio downmixes; measured on the stereo device, −58.8 dBFS of room ambience where the
+stale pin gave 0 bytes. The channel count was never the problem — the name was.
+
+**If whisper-server is also down, fix that second and separately.** A single-service
+restart into a full board dies with `CUDA error: out of memory`; `./run.sh all` starts the
+LLM, then whisper, then the rest, and succeeds where `svc start whisper` cannot.
+
+## The whole dashboard is blank — every page, not just one
+
+`app.js` is one IIFE assigned to `window.Robot`. If anything in it throws, `window.Robot`
+is never assigned, every page script then fails on its first line, and you get a white
+page with a sidebar that never appeared. There is no partial failure.
+
+It happened on 2026-10-06 and the cause is worth knowing because it is invisible to every
+check that existed: an edit spliced a range out of `app.js` that happened to contain the
+block defining `shell`, `NAV` and `icon`. The module's return object still listed those
+three as shorthand properties, so evaluating it raised `ReferenceError`. **`node --check`
+passed** — it parses, it does not execute — the server still returned HTTP 200 for every
+page, and all 571 Python tests passed.
+
+Check it in one line:
+
+    node -e "global.window={};global.document={querySelector:()=>null,body:{dataset:{}}};
+             eval(require('fs').readFileSync('src/robot/ui/static/app.js','utf8'));
+             console.log(typeof window.Robot)"
+
+Or properly, which is what the suite now does:
+
+    python -m pytest tests/test_ui_scripts.py
+
+`tests/js/run_page.mjs` loads app.js plus a page's script against a small DOM and drives
+them with the payloads robot-core really broadcasts. **It also fails on a swallowed
+listener error**, and that part matters more than the loading check: `emit()` wraps every
+listener in try/catch and logs the failure, so a paint function that throws on each
+message does not crash anything — the page just never draws. From the outside that is
+indistinguishable from "the dashboard is empty".
+
+Two related traps in the same area:
+
+* **robot-ui builds its own `hello`.** The browser never talks to robot-core directly;
+  `client.py` caches named fields and `app.py` assembles a fresh payload from them. A new
+  key added to core's `hello` reaches the browser only if it is added in both places --
+  `overview` was added to core and forgotten in the relay, so the tiles sat empty until
+  the first health poll. `test_ui_scripts.py` now asserts the relay sends every key the
+  pages read.
+* **A stub that is missing a field is a test that passes while the page throws.** The
+  harness's fake `budget` omitted `target_mib`; memory.js read
+  `undefined.toLocaleString()`. Fakes here mirror `catalog.budget()` key for key.

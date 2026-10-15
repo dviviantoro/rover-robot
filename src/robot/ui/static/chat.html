@@ -6,7 +6,26 @@
 <title>Robot — Chat</title>
 <link rel="stylesheet" href="/style.css">
 <style>
-  #messages { min-height: 55vh; padding-bottom: 1rem; }
+  /* The composer is pinned to the bottom of the viewport and only the history scrolls.
+     It used to be `position: sticky` inside a page that scrolls as a whole, which keeps
+     it visible but still moves it -- and with the sidebar the scroll container changed
+     again. A column that owns the viewport height is the thing that actually holds it
+     still: `#messages` is the only scroller on the page. */
+  body[data-page="chat"] > .page {
+    height: 100vh; display: flex; flex-direction: column; padding-bottom: 0;
+  }
+  /* The full 72rem, like every other page. A reading measure was the typographically
+     better choice and the wrong one here: this page is read beside the robot's own
+     output and asked to match the rest of the dashboard. */
+  /* A short conversation sits on the composer and grows upwards rather than hanging from
+     the top of an empty column. `margin-top:auto` on the first child and NOT
+     `justify-content:flex-end`: the latter clips the top of an overflowing scroller and
+     puts it out of reach of the scrollbar. This resolves to 0 once the content is taller
+     than the box, so nothing is ever lost. */
+  #messages { display: flex; flex-direction: column; }
+  #messages > *:first-child { margin-top: auto; }
+  #messages { flex: 1 1 auto; overflow-y: auto; min-height: 0;
+              padding-bottom: 0.75rem; scrollbar-gutter: stable; }
   #messages:empty::before {
     content: "Type below. Replies appear here only — for a spoken conversation, use Headless.";
     color: var(--text-faint); font-size: 0.88rem;
@@ -23,26 +42,18 @@
           border-radius: var(--radius-sm); padding: 0.35rem 0.6rem; margin-bottom: 0.6rem; }
   .note { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.6rem; font-style: italic; }
   .meta { font-size: 0.72rem; color: var(--text-faint); margin: -0.3rem 0 0.7rem 0.2rem; }
-  #composer { position: sticky; bottom: 0; background: var(--bg); padding: 0.75rem 0 1rem;
-              display: flex; gap: 0.6rem; align-items: flex-end; }
-  #chat-input { resize: none; }
+  #composer {
+    flex: 0 0 auto; display: flex; gap: 0.6rem; align-items: flex-end;
+    padding: 0.8rem 0 1.1rem; background: var(--bg);
+    border-top: 1px solid var(--border);
+  }
+  #chat-input { resize: none; max-height: 9rem; }
+  #composer button { flex: 0 0 auto; }
+  .statusline { flex: 0 0 auto; }
 </style>
 </head>
-<body>
-<nav class="topnav">
-  <a class="brand" href="/">Robot</a>
-  <div class="links">
-    <a href="/chat" class="current">Chat</a>
-    <a href="/headless">Headless</a>
-    <a href="/knowledge">Knowledge</a>
-    <a href="/memory">Memory</a>
-    <a href="/monitor">Monitor</a>
-    <a href="/logs">Logs</a>
-    <a href="/services">Services</a>
-    <a href="/config">Config</a>
-  </div>
-  <div class="right"><a class="btn-ghost" href="/logout">Sign out</a></div>
-</nav>
+<body data-page="chat">
+<nav class="sidebar"></nav>
 <div class="page">
   <div class="statusline">
     <span class="dot" id="live-dot"></span><span id="live-text">connecting…</span>

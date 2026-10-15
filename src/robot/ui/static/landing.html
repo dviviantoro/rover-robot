@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Robot — multilingual voice robot</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  /* Public page: no data, no navigation to places you cannot go yet. It deliberately
+     does not set body[data-page], so it keeps the plain centred body and no sidebar. */
+  .lp { max-width: 62rem; margin: 0 auto; padding: 0 1.25rem 5rem; }
+
+  .lp-top { display: flex; align-items: center; justify-content: space-between;
+            gap: 1rem; padding: 1.4rem 0 0; }
+  .lp-brand { display: flex; align-items: center; gap: 0.6rem; font-weight: 700;
+              font-size: 1.05rem; letter-spacing: -0.02em; color: var(--text); }
+  .lp-brand:hover { text-decoration: none; }
+  .lp-mark { width: 1.6rem; height: 1.6rem; border-radius: 0.55rem; flex-shrink: 0;
+             background: linear-gradient(140deg, var(--accent), var(--violet));
+             box-shadow: 0 2px 10px var(--accent-glow); }
+
+  .hero { padding: 4rem 0 3rem; text-align: center; }
+  .eyebrow { display: inline-flex; align-items: center; gap: 0.45rem; font-size: 0.76rem;
+             font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase;
+             color: var(--accent-soft-text); background: var(--accent-soft);
+             border-radius: 999px; padding: 0.35rem 0.85rem; margin-bottom: 1.4rem; }
+  .eyebrow .pip { width: 0.4rem; height: 0.4rem; border-radius: 999px;
+                  background: var(--accent); }
+  .hero h1 { font-size: clamp(2.1rem, 6vw, 3.4rem); line-height: 1.05;
+             letter-spacing: -0.035em; margin: 0 0 1rem; }
+  .hero h1 .grad { background: linear-gradient(120deg, var(--accent), var(--violet));
+                   -webkit-background-clip: text; background-clip: text;
+                   -webkit-text-fill-color: transparent; }
+  .hero p { font-size: 1.05rem; line-height: 1.6; color: var(--text-muted);
+            max-width: 38rem; margin: 0 auto 2rem; }
+  .cta { display: flex; gap: 0.7rem; justify-content: center; flex-wrap: wrap; }
+  .cta .btn-primary, .cta .btn-ghost { padding: 0.7rem 1.5rem; font-size: 0.95rem; }
+
+  .feats { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+           gap: 1rem; margin: 1rem 0 3.5rem; }
+  .feat { padding: 1.4rem; }
+  .feat .ico { width: 2.2rem; height: 2.2rem; border-radius: 0.65rem; display: grid;
+               place-items: center; background: var(--accent-soft);
+               color: var(--accent-soft-text); margin-bottom: 0.9rem; }
+  .feat .ico svg { width: 1.15rem; height: 1.15rem; }
+  .feat h3 { margin: 0 0 0.4rem; font-size: 0.97rem; }
+  .feat p { margin: 0; font-size: 0.87rem; line-height: 1.55; color: var(--text-muted); }
+
+  .strip { padding: 1.5rem 1.6rem; }
+  .strip h2 { margin-bottom: 1rem; }
+  .specs { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+           gap: 1.1rem 1.5rem; }
+  .spec .k { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em;
+             text-transform: uppercase; color: var(--text-faint); margin-bottom: 0.25rem; }
+  .spec .v { font-size: 0.9rem; font-weight: 550; }
+  .spec .v small { display: block; font-weight: 400; font-size: 0.78rem;
+                   color: var(--text-muted); margin-top: 0.1rem; }
+
+  .langs { display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap;
+           margin-bottom: 2.2rem; }
+  .lang-chip { font-size: 0.83rem; font-weight: 550; padding: 0.4rem 0.9rem;
+               border-radius: 999px; background: var(--surface);
+               border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
+  .lang-chip span { color: var(--text-muted); font-weight: 400; }
+
+  .lp-foot { text-align: center; color: var(--text-faint); font-size: 0.8rem;
+             padding-top: 2.5rem; }
+</style>
+</head>
+<body>
+<div class="lp">
+  <div class="lp-top">
+    <a class="lp-brand" href="/"><span class="lp-mark"></span>Robot</a>
+    <a class="btn-ghost" href="/dashboard">Open dashboard</a>
+  </div>
+
+  <div class="hero">
+    <div class="eyebrow"><span class="pip"></span>Runs entirely on the robot</div>
+    <h1>A voice you can talk to,<br><span class="grad">with nothing in the cloud</span></h1>
+    <p>
+      It listens, understands and answers out loud in Bahasa Indonesia, English and
+      Arabic. Speech recognition, the language model and the voice all run on a single
+      Jetson Orin Nano on the robot itself — no account, no API key, and no sentence
+      ever leaves the room.
+    </p>
+    <div class="cta">
+      <a class="btn-primary" href="/dashboard">Open dashboard</a>
+      <a class="btn-ghost" href="#how">How it works</a>
+    </div>
+  </div>
+
+  <div class="langs">
+    <div class="lang-chip">Bahasa Indonesia <span>— default</span></div>
+    <div class="lang-chip">English</div>
+    <div class="lang-chip">العربية</div>
+    <div class="lang-chip">detected per utterance <span>— no switching</span></div>
+  </div>
+
+  <div class="feats" id="how">
+    <div class="card feat">
+      <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3zM19 10v1a7 7 0 0 1-14 0v-1M12 19v4M8 23h8"/></svg></div>
+      <h3>It hears you in a busy room</h3>
+      <p>Silero voice detection finds where speech starts and stops, and three measured
+         gates throw away what was never speech — so the robot does not answer the air
+         conditioning.</p>
+    </div>
+    <div class="card feat">
+      <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.5 8.6 8.6 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.4 8.4 0 0 1 8.5-8.5 8.4 8.4 0 0 1 8.5 8.5z"/></svg></div>
+      <h3>It answers before it finishes thinking</h3>
+      <p>A short acknowledgement goes out the moment your sentence lands, then the reply
+         streams clause by clause as the model writes it — rather than a long silence and
+         a paragraph.</p>
+    </div>
+    <div class="card feat">
+      <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15z"/></svg></div>
+      <h3>It knows your documents</h3>
+      <p>Drop a PDF in and it is retrieved at the moment it is relevant, answered in the
+         language the question was asked in — not the language the document happened to
+         be written in.</p>
+    </div>
+    <div class="card feat">
+      <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6h12v12H6zM9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg></div>
+      <h3>It moves while it speaks</h3>
+      <p>Every reply carries what the body should do with it. An STM32 owns the motors and
+         stops them on its own if the Jetson goes quiet, so a crash cannot leave the robot
+         driving.</p>
+    </div>
+  </div>
+
+  <div class="card strip">
+    <h2>What it is built from</h2>
+    <div class="specs">
+      <div class="spec"><div class="k">Board</div>
+        <div class="v">Jetson Orin Nano<small>8 GB unified memory, headless</small></div></div>
+      <div class="spec"><div class="k">Listening</div>
+        <div class="v">whisper.cpp<small>large-v3-turbo, on the GPU</small></div></div>
+      <div class="spec"><div class="k">Thinking</div>
+        <div class="v">llama.cpp<small>a local GGUF model, swappable</small></div></div>
+      <div class="spec"><div class="k">Speaking</div>
+        <div class="v">Supertonic<small>one voice, all three languages</small></div></div>
+    </div>
+  </div>
+
+  <div class="lp-foot">
+    The dashboard can drive the robot, so it asks you to sign in.
+  </div>
+</div>
+</body>
+</html>

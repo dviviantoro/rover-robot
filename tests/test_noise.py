@@ -176,3 +176,50 @@ class TestEnvironment:
         assert settings.mode == "stream"
         assert (settings.gate_margin_db, settings.max_no_speech) == (9.0, 0.8)
         assert settings.min_logprob == -2.0
+
+
+class TestTheDashboardToggle:
+    """Config → Hardware offers off/on. The two precise modes stay available to an env
+    file: a toggle is the right control for deciding WHETHER to suppress, and the wrong
+    one for measuring which mode is better."""
+
+    def test_on_means_utterance(self):
+        from robot.asr.noise import ALIASES
+        assert ALIASES["on"] == "utterance"
+
+    def test_on_actually_enables_something(self, tmp_path):
+        from robot.asr.noise import NoiseControl, NoiseSettings
+        model = tmp_path / "gtcrn.onnx"
+        model.write_bytes(b"not a real model")
+        control = NoiseControl(NoiseSettings(model=str(model), mode="on"))
+        # It resolves the alias before validating, so it never reports "unknown mode".
+        assert "unknown mode" not in control.detail
+
+    def test_off_stays_off(self, tmp_path):
+        from robot.asr.noise import NoiseControl, NoiseSettings
+        control = NoiseControl(NoiseSettings(mode="off"))
+        assert not control.active
+
+    def test_an_unknown_mode_is_still_reported(self):
+        from robot.asr.noise import NoiseControl, NoiseSettings
+        control = NoiseControl(NoiseSettings(mode="maybe"))
+        assert "unknown mode" in control.detail
+        assert not control.active
+
+    def test_the_registry_offers_exactly_a_toggle(self):
+        from robot.core.settings import BY_KEY
+        assert BY_KEY["asr_denoise"].options == ("off", "on")
+
+    def test_the_help_still_carries_the_losing_measurement(self):
+        """It is off because it was measured and lost. A control that hides that invites
+        someone to turn it on and wonder why transcription got worse."""
+        from robot.core.settings import BY_KEY
+        assert "+314%" in BY_KEY["asr_denoise"].help
+
+
+class TestMicrophoneGain:
+    def test_it_is_a_registered_hot_asr_setting(self):
+        from robot.core.settings import BY_KEY, HOT
+        setting = BY_KEY["mic_gain"]
+        assert setting in HOT and setting.where == "asr"
+        assert (setting.minimum, setting.maximum, setting.default) == (0, 200, 100)

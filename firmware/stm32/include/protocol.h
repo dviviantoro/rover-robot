@@ -7,6 +7,13 @@
  *   OK <command>   ERR <command> <reason>   DONE <command>
  *   STAT batt=<V> motors=<ok|stall> temp=<C> up=<ms>
  *
+ * Discovery (every start of robot-core, to every serial port):
+ *   Jetson -> {PING_robot}
+ *   STM32  -> {"device":"STM32","status":"online"}
+ *
+ * Reply lines (Jetson -> STM32, information): one JSON object per phase of a turn,
+ * starting with `{`. Swallowed without an answer -- nothing waits on them.
+ *
  * Newline-terminated ASCII. Parsing is allocation-free and does not mutate its input,
  * so it is safe to call straight from the USB CDC receive path.
  */
@@ -15,7 +22,7 @@
 
 #include <stdint.h>
 
-#define PROTOCOL_MAX_LINE 96
+#define PROTOCOL_MAX_LINE 256
 #define PROTOCOL_MAX_TOKEN 24
 
 /* Safety limits. The orchestrator clamps before sending; these are the STM32's own
@@ -59,6 +66,14 @@ int protocol_parse(const char *line, command_t *out);
 void protocol_ok(char *buf, uint32_t len, const char *verb);
 void protocol_err(char *buf, uint32_t len, const char *verb, const char *reason);
 void protocol_done(char *buf, uint32_t len, const char *verb);
+/* The discovery ping. Matched case-insensitively and ignoring surrounding space. */
+#define PROTOCOL_DISCOVERY_PING "{PING_robot}"
+int protocol_is_discovery_ping(const char *line);
+/* A reply line is any line whose first non-space character is `{` (and is not the
+ * discovery ping). They are information for the body, never commands. */
+int protocol_is_reply_line(const char *line);
+void protocol_online(char *buf, uint32_t len, const char *device);
+
 void protocol_stat(char *buf, uint32_t len,
                    float battery_v, int stalled, float temp_c, uint32_t uptime_ms);
 

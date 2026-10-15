@@ -15,28 +15,110 @@ from __future__ import annotations
 import argparse
 import asyncio
 import contextlib
+import json
 import logging
 import os
 import signal
 import time
 from pathlib import Path
 
+from robot.common import audio as audio_endpoint
 from robot.common import ipc, services, ws
 from robot.core.llm import LlamaClient
 from robot.core import language as lang_mod
 from robot.core import catalog
 from robot.core.embed_server import EmbedServer
+from robot.core import keepalive as keepalive_mod
+from robot.core import health as health_mod
 from robot.core.health import Health, State, restart_service
 from robot.core.logstream import install as install_logstream
 from robot.core.rag import Embedder, Ingestor, Retriever, Store
 from robot.core.settings import BY_KEY, GROUPS, HOT, RESTART, Kind, Settings, describe
-from robot.core.serial_link import SerialLink
+from robot.core.serial_link import SerialLink, ping_ports
 from robot.core.tools import ToolBox
 from robot.core.turn import Config, Orchestrator
 
 log = logging.getLogger("robot-core")
 
 RECONNECT_DELAY = 2.0
+
+
+def _serial_ports() -> list[str]:
+    """Serial devices the STM32 could plausibly be on.
+
+    `/dev/serial/by-id` first, because those names survive a replug while `ttyACM0` and
+    `ttyACM1` swap depending on boot order -- the same class of bug as a renamed
+    PulseAudio port, and the stable name is the one worth offering. The raw nodes are
+    listed too, since a board with no USB serial descriptor has no by-id entry at all.
+    """
+    found: list[str] = []
+    by_id = Path("/dev/serial/by-id")
+    try:
+        if by_id.is_dir():
+            found.extend(sorted(str(p) for p in by_id.iterdir()))
+    except OSError:
+        # Unreadable or racing a replug. The raw nodes below are still worth offering,
+        # and an exception here would take the whole Config page's option list with it.
+        pass
+    for pattern in ("ttyACM*", "ttyUSB*", "ttyTHS*"):
+        found.extend(sorted(str(p) for p in Path("/dev").glob(pattern)))
+    # Preserve order, drop duplicates -- a by-id entry and its target are the same port.
+    seen, out = set(), []
+    for port in found:
+        real = os.path.realpath(port)
+        if real in seen:
+            continue
+        seen.add(real)
+        out.append(port)
+    return out
+
+
+def _port_candidates(configured: str | None) -> list[str]:
+    """Every place the microcontroller could be, the configured port first.
+
+    The configured port is listed even when `_serial_ports` would not find it -- a
+    simulator's pty is `/dev/pts/N`, which no glob matches. Ports are de-duplicated by
+    real path, because an exclusive open of the same device twice reports it busy.
+    """
+    ordered = ([configured] if configured else []) + _serial_ports()
+    seen, out = set(), []
+    for port in ordered:
+        real = os.path.realpath(port)
+        if real in seen:
+            continue
+        seen.add(real)
+        out.append(port)
+    return out
+
+
+def _stable_name(port: str) -> str:
+    """The `/dev/serial/by-id` alias of `port` when it has one.
+
+    `ttyACM0` and `ttyACM1` swap with boot order, and on this board `ttyACM0` has been
+    the USB soundcard; the by-id name follows the device. This is what gets saved.
+    """
+    real = os.path.realpath(port)
+    by_id = Path("/dev/serial/by-id")
+    try:
+        if by_id.is_dir():
+            for alias in sorted(by_id.iterdir()):
+                if os.path.realpath(alias) == real:
+                    return str(alias)
+    except OSError:
+        pass
+    return port
+
+
+def _device_of(reply: str) -> str | None:
+    """`ESP32` out of `{"device":"ESP32","status":"online"}`."""
+    try:
+        return str(json.loads(reply).get("device") or "") or None
+    except (ValueError, AttributeError, TypeError):
+        return None
+
+
+def _same_port(a: str | None, b: str | None) -> bool:
+    return bool(a and b) and os.path.realpath(a) == os.path.realpath(b)
 
 
 def _env_value(path: str, key: str) -> str | None:
@@ -158,6 +240,15 @@ class CoreService:
         self.serial: SerialLink | None = (
             SerialLink(serial_port, on_event=self._on_serial) if serial_port else None
         )
+        # What the start-up ping found. Shown on Config as the microcontroller port, and
+        # sent whole to every dashboard that connects, so the answer to "did it find the
+        # board" does not depend on having had the page open at the right second.
+        self.microcontroller: dict = {
+            "port": serial_port or "", "state": "searching", "device": None,
+            "reply": "", "ms": None, "saved": False, "checked_at": None,
+            "results": [],
+        }
+        self._link_task: asyncio.Task | None = None
         # Knowledge (M7). All optional: with no embedding server the robot still
         # converses, it just does not remember or retrieve anything.
         self.store: Store | None = None
@@ -168,7 +259,19 @@ class CoreService:
         self.remember = None
 
         self.health = Health()
+        # For the dashboard's "up for" figure. monotonic, so it survives a clock step.
+        self._started_at = time.monotonic()
+        # Brings the three engines back when they die. Built here, driven by the health
+        # poll. Under run_stack.sh nothing else would: a service's non-zero exit is
+        # addressed to systemd, which is not running.
+        self.keepalive = keepalive_mod.from_env(
+            self.health,
+            on_event=lambda event: self.broadcast(event),
+            llm_ctx=lambda: self._llm_ctx(),
+            pin_llm=lambda path: self.settings.set("llm_model", path),
+        )
         self.settings = Settings()
+        self._whisper_bad_since: float | None = None
         # Everything watching the robot: the dashboard, and anything else that attaches.
         # Kept deliberately dumb -- a listener that goes away is simply dropped.
         self._watchers: set = set()
@@ -261,6 +364,76 @@ class CoreService:
         if self.orch is not None:
             asyncio.get_running_loop().create_task(self.orch._broadcast(event))
 
+    # An alive process that has not answered /health for this long is treated as dead.
+    # Longer than a cold checkpoint load, so a restart in progress is never mistaken for
+    # a hang.
+    WHISPER_HUNG_AFTER_S = 90.0
+
+    async def _poll_whisper(self) -> None:
+        """Paint the decoder's row from its own /health -- not from robot-asr's socket.
+
+        Three outcomes, and only one is a fault: it answers (UP); it is not running at
+        all (DOWN); it is running and not answering (UNKNOWN while it loads -- a
+        checkpoint load answers 503 for ~20 s and is not a failure -- and DOWN only once
+        that has gone on past WHISPER_HUNG_AFTER_S). Keepalive acts on DOWN alone, so
+        "loading" must never be reported as one.
+        """
+        svc = self.health.services.get("whisper")
+        if svc is None or svc.state is State.RESTARTING:
+            return
+        host = _env_value("config/whisper.env", "WHISPER_HOST") or "127.0.0.1"
+        port = _env_value("config/whisper.env", "WHISPER_PORT") or "8083"
+        result = await asyncio.to_thread(health_mod.probe_whisper, host, port)
+        now = time.monotonic()
+        if result == "ok":
+            self._whisper_bad_since = None
+            self._log_transition("whisper", True)
+            self.health.touch("whisper", State.UP)
+            return
+        if not services.is_running("whisper"):
+            self._whisper_bad_since = None
+            self._log_transition("whisper", False)
+            self.health.touch("whisper", State.DOWN, "whisper-server is not running")
+            return
+        since = getattr(self, "_whisper_bad_since", None) or now
+        self._whisper_bad_since = since
+        if now - since >= self.WHISPER_HUNG_AFTER_S:
+            self._log_transition("whisper", False)
+            self.health.touch("whisper", State.DOWN,
+                              f"running but not answering for {now - since:.0f}s")
+        else:
+            self.health.touch("whisper", State.UNKNOWN, "loading, or not answering yet")
+
+    # How long after core starts a client may stay UNKNOWN before "it has not connected
+    # yet" becomes "it is not there". Longer than a normal start (robot-asr is up within
+    # ~5 s of core), shorter than anyone would wait for a robot that cannot hear.
+    NEVER_CONNECTED_AFTER_S = 45.0
+
+    def _poll_never_connected(self) -> None:
+        """A client that has NEVER connected is DOWN once it has had time to.
+
+        `asr` and `tts` get their state from the socket to them, so a process that died
+        before ever connecting leaves the row at UNKNOWN -- and keepalive, correctly,
+        does not treat UNKNOWN as a fault (that was restarting services in the middle of
+        coming up). Together those two rules made a robot-asr that crashed at start-up
+        invisible for good: 2026-10-14, PulseAudio had not yet listed the USB source,
+        robot-asr exited once, and the robot sat deaf for fifteen minutes with a log
+        line every two seconds saying "unavailable, retrying quietly".
+
+        The test is about the PROCESS, not the socket: UNKNOWN, past the start-up grace,
+        and not running. A process that is running and still has not connected stays
+        UNKNOWN -- that is slow, not dead.
+        """
+        if time.monotonic() - self._started_at < self.NEVER_CONNECTED_AFTER_S:
+            return
+        for name in ("asr", "tts"):
+            svc = self.health.services.get(name)
+            if svc is None or svc.state is not State.UNKNOWN:
+                continue
+            if not services.is_running(name):
+                self.health.touch(name, State.DOWN,
+                                  "never connected, and the process is not running")
+
     # -- dashboard --------------------------------------------------------
     async def _watch_health(self) -> None:
         """Poll the services so the health panel reflects reality, not hope."""
@@ -269,6 +442,8 @@ class CoreService:
                 llm_ok = await self.llm.health()
                 self._log_transition("llm", llm_ok)
                 self.health.touch("llm", State.UP if llm_ok else State.DOWN)
+                await self._poll_whisper()
+                self._poll_never_connected()
                 if self.embed_pool is not None and self.embed_pool.mode == "on-demand":
                     # Demand-started: whether it is running is a decision, not a fault.
                     # Probing it here would also wake nothing and log a transition every
@@ -289,12 +464,20 @@ class CoreService:
                     self.health.services["embed"].detail = "no embedding server configured"
                 if self.serial is None:
                     self.health.services["serial"].state = State.ABSENT
-                    self.health.services["serial"].detail = "no STM32 port configured"
+                    self.health.services["serial"].detail = (
+                        "no microcontroller answered {PING_robot}"
+                        if self.microcontroller.get("state") == "none"
+                        else "looking for the microcontroller")
                 elif self.health.services["serial"].state is not State.RESTARTING:
                     up = self.serial.connected
                     self.health.touch("serial", State.UP if up else State.DOWN,
                                       self.serial.port)
-                await self.broadcast({"type": "health", "services": self.health.snapshot()})
+                await self.broadcast({"type": "health", "services": self.health.snapshot(),
+                                      "overview": self.overview(),
+                                      "microcontroller": self.mcu_snapshot()})
+                # After the broadcast, so the panel shows DOWN before anything is
+                # restarted -- the page should see the fault, not only the recovery.
+                await self.keepalive.poll()
                 # The Memory page, from the same poll. It reads /proc every time, so
                 # what it shows is what the board weighs NOW -- a model loading, the
                 # embedding server waking, an LLM swapped underneath it. It used to be
@@ -338,6 +521,187 @@ class CoreService:
         except (OSError, ValueError):
             pass
         return 2048
+
+    def overview(self) -> dict:
+        """What the dashboard shows above the fold, on every health poll.
+
+        Deliberately cheap: everything here is an in-memory counter or one indexed
+        COUNT(*). It rides the 3 s health broadcast, so anything expensive would be
+        paid for three times a second for as long as a page is open.
+        """
+        usage = dict(self.orch.usage) if self.orch is not None else {}
+        try:
+            chunks, sources = self.store.count(), len(self.store.sources())
+        except Exception:
+            # A missing or locked store must not take the dashboard down with it.
+            chunks, sources = 0, 0
+        return {
+            "usage": usage,
+            "knowledge": {"chunks": chunks, "sources": sources},
+            "turns": len(self.orch.metrics) if self.orch is not None else 0,
+            "uptime_s": round(time.monotonic() - self._started_at, 1),
+            "language_default": lang_mod.DEFAULT,
+            "reply_format": self.config.reply_format,
+            "listen_mode": self.config.listen_mode,
+            "filler": bool(self.config.filler),
+            "keepalive": self.keepalive.report(),
+            # The last few turns, for the dashboard's token graph. Compact on purpose:
+            # this rides a 3 s broadcast, so it is three integers and a flag per turn
+            # rather than the whole TurnMetrics.
+            "recent": self._recent_turns(),
+        }
+
+    async def _document(self, source: str | None) -> dict:
+        """One ingested document: its chunks, its metadata, and the original if we have it.
+
+        The original is the honest part. Ingestion stores chunks and does not keep the
+        source text, so `raw` comes from the file when the source names one that is still
+        on disk, and is rebuilt from the chunks when it does not -- which is the case for
+        anything typed in or uploaded. `raw_from` says which, because a rebuilt document
+        has lost whatever the splitter dropped between chunks and should not be presented
+        as the file.
+        """
+        if not source or self.store is None:
+            return {"type": "document", "error": "no such source"}
+        try:
+            doc = await asyncio.to_thread(self.store.document, str(source))
+        except Exception as exc:
+            return {"type": "document", "source": source, "error": repr(exc)}
+        if not doc.get("total_chunks"):
+            # The store holds nothing under that name. `_raw_document` reads a file
+            # because the store has a source called that -- it says so in its own
+            # docstring -- and without this check it read whatever path a browser sent:
+            # {"type": "document", "source": "/media/.../.env"} returned the file. Nothing
+            # stored means nothing to show, and nothing that justifies opening a file.
+            return {"type": "document", "source": source, "error": "no such source"}
+        doc["type"] = "document"
+        raw, origin = self._raw_document(str(source))
+        if raw is None:
+            raw = "\n\n".join(c["text"] for c in doc["chunks"])
+            origin = "chunks"
+        doc["raw"] = raw[:200_000]
+        doc["raw_from"] = origin
+        doc["raw_truncated"] = len(raw) > 200_000
+        return doc
+
+    @staticmethod
+    def _raw_document(source: str) -> tuple[str | None, str]:
+        """The file behind a source name, if it is still there and is text.
+
+        Deliberately narrow: `knowledge/` and an absolute path that already existed. This
+        reads a file because a browser asked for a name the store happens to hold, so it
+        does not follow the name anywhere the robot was not already told to look.
+        """
+        candidates = []
+        name = Path(source).name
+        candidates.append(Path("knowledge") / name)
+        if source.startswith("/"):
+            candidates.append(Path(source))
+        for path in candidates:
+            try:
+                if not path.is_file() or path.stat().st_size > 8 * 1024 * 1024:
+                    continue
+                if path.suffix.lower() == ".pdf":
+                    # The chunks ARE the extracted text; re-extracting here would mean a
+                    # PDF parser on the dashboard's path for no gain.
+                    return None, "chunks"
+                return path.read_text(encoding="utf-8", errors="replace"), "file"
+            except OSError:
+                continue
+        return None, "chunks"
+
+    # A grammar, not a request. Asking for JSON in the prompt produced JSON and then ran
+    # out of budget mid-object, so `rfind("}")` found nothing and a perfectly good summary
+    # was reported as "the model did not return JSON". Under a schema llama.cpp cannot
+    # emit anything else, and the caps here are what keep it inside the token budget.
+    DESCRIBE_FORMAT = {
+        "type": "json_schema",
+        "json_schema": {"name": "document_card", "strict": True, "schema": {
+            "type": "object",
+            "properties": {
+                "summary": {"type": "string", "maxLength": 400},
+                "topics": {"type": "array", "maxItems": 6,
+                           "items": {"type": "string", "maxLength": 40}},
+                "entities": {
+                    "type": "object",
+                    "properties": {
+                        "people": {"type": "array", "maxItems": 10,
+                                   "items": {"type": "string", "maxLength": 60}},
+                        "places": {"type": "array", "maxItems": 10,
+                                   "items": {"type": "string", "maxLength": 60}},
+                        "organisations": {"type": "array", "maxItems": 10,
+                                          "items": {"type": "string", "maxLength": 60}},
+                        "dates": {"type": "array", "maxItems": 10,
+                                  "items": {"type": "string", "maxLength": 40}},
+                    },
+                    "required": ["people", "places", "organisations", "dates"],
+                },
+            },
+            "required": ["summary", "topics", "entities"],
+        }},
+    }
+
+    async def _describe(self, source: str | None) -> dict:
+        """Summarise a document and name what it is about, using the resident LLM.
+
+        On request, never on a page load. A proper NER model would be a `transformers`
+        dependency -- constraint 4 forbids it in the runtime path and the budget could not
+        pay for it -- and a regex that guesses at capitalised words would be worse than
+        nothing, because it would be believed. The model already in memory can do both,
+        and the cost is a few seconds of the GPU that is otherwise idle between turns.
+        """
+        if not source or self.store is None:
+            return {"type": "described", "error": "no such source"}
+        doc = await asyncio.to_thread(self.store.document, str(source), 40)
+        text = "\n".join(c["text"] for c in doc["chunks"])[:4000]
+        if not text.strip():
+            return {"type": "described", "source": source, "error": "nothing stored"}
+        prompt = (
+            "Summarise the document below in AT MOST two short sentences, then list what "
+            "it names. Use the document's own language for the summary. Leave a list "
+            "empty rather than guessing at something the document does not say."
+            "\n\n--- document ---\n" + text)
+        try:
+            out = []
+            async for piece in self.llm.stream(
+                    [{"role": "user", "content": prompt}],
+                    max_tokens=700, temperature=0.2,
+                    response_format=self.DESCRIBE_FORMAT):
+                out.append(piece)
+            raw = "".join(out)
+        except Exception as exc:
+            return {"type": "described", "source": source,
+                    "error": f"the LLM could not be reached: {exc!r}"}
+        start, end = raw.find("{"), raw.rfind("}")
+        if start < 0 or end <= start:
+            return {"type": "described", "source": source,
+                    "error": "the model did not return JSON", "raw": raw[:500]}
+        try:
+            parsed = json.loads(raw[start:end + 1])
+        except json.JSONDecodeError as exc:
+            return {"type": "described", "source": source,
+                    "error": f"unreadable JSON: {exc}", "raw": raw[start:end + 1][:500]}
+        return {"type": "described", "source": source, "described": parsed,
+                "model": _env_value("config/llm.env", "LLM_MODEL") or "the LLM",
+                "chunks_read": len(doc["chunks"]), "chars_read": len(text)}
+
+    def _recent_turns(self, limit: int = 24) -> list[dict]:
+        if self.orch is None:
+            return []
+        out = []
+        for m in list(self.orch.metrics)[-limit:]:
+            out.append({
+                "id": m.turn_id,
+                "in": int(m.prompt_tokens or 0),
+                "out": int(m.tokens or 0),
+                "cached": int(m.cached_tokens or 0),
+                # Perceived latency, which is the number worth plotting next to cost.
+                "first_audio_ms": (round((m.first_audio - m.speech_end) * 1000)
+                                   if m.first_audio and m.speech_end else None),
+                "truncated": bool(m.truncated),
+                "source": m.source,
+            })
+        return out
 
     def catalogue(self) -> list[dict]:
         return [m.as_dict() for m in catalog.scan(llm_ctx=self._llm_ctx())]
@@ -514,6 +878,8 @@ class CoreService:
                  "min_silence": self.settings.get("vad_min_silence"),
                  "threshold": self.settings.get("vad_threshold"),
                  "noise_gate_db": self.settings.get("asr_noise_gate_db"),
+                 "mic_gain": self.settings.get("mic_gain"),
+                 "auto_trigger": self.settings.get("auto_trigger"),
                  "max_no_speech": self.settings.get("asr_max_no_speech"),
                  "denoise": self.settings.get("asr_denoise")})
         elif setting.where == "tts":
@@ -625,7 +991,7 @@ class CoreService:
     # because the wire protocol predates the registry; mapping in one place beats two
     # vocabularies drifting.
     _ASR_KEYS = {"vad_min_silence": "min_silence", "vad_threshold": "threshold",
-                 "asr_noise_gate_db": "noise_gate_db",
+                 "asr_noise_gate_db": "noise_gate_db", "mic_gain": "mic_gain", "auto_trigger": "auto_trigger",
                  "asr_max_no_speech": "max_no_speech", "asr_denoise": "denoise"}
 
     async def _configure_peer(self, path: str, name: str, message: dict) -> str:
@@ -665,9 +1031,13 @@ class CoreService:
                 # reconnecting it IS the scoped restart. Restarting robot-core instead
                 # would drop the conversation and, worse, the heartbeat.
                 if self.serial is None:
-                    return {"ok": False, "error": "no serial link configured"}
+                    if not staged:
+                        return {"ok": False, "error": "no serial port chosen"}
+                    self._ensure_link(str(staged))
+                    self._start_link()
                 if staged:
                     self.serial.port = str(staged)
+                    self.microcontroller["port"] = str(staged)
                 await self.serial.close()
                 # Wait for the link to actually come back rather than reporting success
                 # the moment it is closed. Without this the light stays amber forever
@@ -681,7 +1051,11 @@ class CoreService:
                         break
                 message = (f"reconnected to {self.serial.port}" if ok
                            else f"could not open {self.serial.port}")
-            elif component in ("asr", "whisper"):
+            elif setting["key"] == "asr_model":
+                # Keyed on the setting, not on its component: `mic_source` also restarts
+                # robot-asr and must NOT come through here -- it changes which device the
+                # microphone opens, not which weights the decoder holds.
+                #
                 # Choosing a checkpoint touches two services, in order: whisper-server
                 # reloads the model, then robot-asr reconnects to it. Restarting only
                 # one leaves the microphone talking to a decoder that is still holding
@@ -708,7 +1082,7 @@ class CoreService:
         await self.broadcast({"type": "health", "services": self.health.snapshot()})
         return {"ok": ok, "component": component, "message": message}
 
-    def _settings_with_options(self) -> list[dict]:
+    def _settings_with_options(self) -> list[dict]:  # noqa: C901
         """The registry, with model fields turned into real choices.
 
         The registry cannot know what is installed, so the options are filled in here
@@ -728,6 +1102,40 @@ class CoreService:
             elif row["key"] == "asr_model":
                 row["options"] = [m.path for m in models if m.kind == "asr"]
                 row["type"] = "select" if row["options"] else row["type"]
+            elif row["key"] in ("mic_source", "speaker_sink"):
+                kind = "source" if row["key"] == "mic_source" else "sink"
+                # Monitor sources are what a sink is PLAYING. Offering one as a
+                # microphone offers the robot its own voice, which under `interrupt`
+                # means it transcribes itself and cancels its own reply.
+                names = [n for n in audio_endpoint.endpoints(kind)
+                         if not n.endswith(".monitor")]
+                row["options"] = names
+                # From the registry, not from `row`: describe() deliberately does not
+                # serialise env_file/env_key, because the browser has no business
+                # knowing which file on disk a control writes.
+                reg = BY_KEY[row["key"]]
+                configured = _env_value(reg.env_file, reg.env_key)
+                if configured and configured not in names:
+                    # Keep the stale value selectable so the page shows what is wrong
+                    # rather than silently redrawing as if nothing were configured.
+                    row["options"] = [configured, *names]
+                    row["disabled_reason"] = (
+                        f"{configured!r} is configured but not connected -- the robot is "
+                        f"{'deaf' if kind == 'source' else 'mute'} until this is changed.")
+                if not names:
+                    row["enabled"] = False
+                    row["disabled_reason"] = ("PulseAudio reported no "
+                                              f"{kind}s. Is pulseaudio running?")
+            elif row["key"] == "serial_port":
+                ports = _serial_ports()
+                configured = _env_value("config/core.env", "STM32_PORT")
+                # "" is a real choice: a robot with no body still talks and listens.
+                row["options"] = ["", *ports]
+                if configured and configured not in ports:
+                    row["options"] = ["", configured, *ports]
+                    row["disabled_reason"] = (
+                        f"{configured!r} is configured but not present -- no heartbeat "
+                        f"and no motion until the STM32 is reconnected.")
             elif row["key"] == "supertonic_voice":
                 model = next((m for m in models
                               if (m.meta or {}).get("engine") == "supertonic"), None)
@@ -765,7 +1173,11 @@ class CoreService:
         try:
             await conn.send({
                 "type": "hello",
-                "settings": self._settings_with_options(),
+                # Off the event loop: it shells out to `pactl` twice, and a wedged
+                # PulseAudio makes each call wait out its 4 s timeout. This is the loop
+                # the voice pipeline runs on, so a page being opened must not be able to
+                # freeze a turn.
+                "settings": await asyncio.to_thread(self._settings_with_options),
                 "models": self.catalogue(),
                 "budget": self.budget(),
                 # The effective selection: a saved setting if there is one, otherwise
@@ -777,6 +1189,8 @@ class CoreService:
                 "services": self.health.snapshot(),
                 "state": self.orch.state.value if self.orch else "starting",
                 "languages": ["en", "id", "ar"],
+                "overview": self.overview(),
+                "microcontroller": self.mcu_snapshot(),
             })
             async for msg in conn.messages():
                 kind = msg.get("type")
@@ -801,6 +1215,17 @@ class CoreService:
                         await conn.send({"type": "apply_result",
                                          **await self._apply_selection(msg.get("values") or {})})
                         await self.broadcast({"type": "budget", **self.budget()})
+                    elif kind == "ping_ports":
+                        # Every serial device that exists, not just the configured
+                        # one: "which port is the body?" is the question, and the
+                        # configured port is the thing that may be wrong.
+                        results = await ping_ports(
+                            _port_candidates(self.serial.port if self.serial else None),
+                            self.serial if self.serial and self.serial.connected else None)
+                        self._note_ping(results)
+                        await conn.send({"type": "ping_result", "results": results})
+                        await self.broadcast({"type": "microcontroller",
+                                              **self.mcu_snapshot()})
                     elif kind == "restart":
                         await conn.send({"type": "restart_result",
                                          **await self._restart_component(
@@ -886,6 +1311,10 @@ class CoreService:
                             "sources": self.store.sources() if self.store else [],
                             "pending": self.ingestor.pending if self.ingestor else 0,
                         })
+                    elif kind == "document":
+                        await conn.send(await self._document(msg.get("source")))
+                    elif kind == "describe":
+                        await conn.send(await self._describe(msg.get("source")))
                     elif kind == "metrics" and self.orch is not None:
                         await conn.send({"type": "metrics",
                                          "turns": [m.as_dict() for m in self.orch.metrics]})
@@ -921,6 +1350,8 @@ class CoreService:
         elif kind == "serial_status" and event.get("motors") == "stall":
             self.orch.note_from_hardware(
                 "a wheel is stalled -- you are not actually moving")
+        elif kind == "serial_up":
+            self.orch.resync_body()
         elif kind == "serial_down":
             self.orch.note_from_hardware(
                 "the connection to your body is down; you cannot move right now")
@@ -942,6 +1373,9 @@ class CoreService:
                         on_event=lambda e: self._on_tool(e))
         self.orch = Orchestrator(self.llm, tts, self.config, tools=tools,
                                  retrieve=self.retrieve)
+        # The idle face, once, at start. After that it is shown once each time a turn ends;
+        # it is not repeated while nothing happens.
+        await self.orch._show_face("idle", answer="")
 
         if await self.llm.health():
             log.info("llama.cpp healthy")
@@ -976,17 +1410,172 @@ class CoreService:
                 with contextlib.suppress(Exception):
                     await self._apply_setting(key, value)
 
-        pumps = [self._pump_asr(), self._pump_tts(tts), self._watch_health()]
-        if self.serial is not None:
-            # Starts the 200 ms PING. If this process dies the heartbeat stops and the
-            # STM32's own watchdog zeroes the motors -- which is the entire safety
-            # design, and is why nothing here tries to stop the robot on shutdown.
-            log.info("serial link to STM32: %s", self.serial.port)
-            pumps.append(self.serial.run())
-        else:
-            log.warning("no STM32 port configured -- no heartbeat, no motion")
+        # The body comes up AFTER it has been found: ping every port, adopt the one that
+        # answers, save it, and only then open the link and start the heartbeat. Nothing
+        # is written to a serial port that has not first answered -- or, when none does,
+        # to the port somebody configured.
+        pumps = [self._pump_asr(), self._pump_tts(tts), self._watch_health(),
+                 self._bring_up_body()]
 
         await asyncio.gather(*pumps)
+
+    # -- the microcontroller -------------------------------------------------
+    DISCOVERY_TIMEOUTS_S = (0.8, 1.6, 2.4)    # how long each attempt waits for an answer
+
+    def mcu_snapshot(self) -> dict:
+        """The microcontroller's state for the dashboard, with the live link folded in."""
+        return {**self.microcontroller,
+                "connected": bool(self.serial and self.serial.connected),
+                "link_port": self.serial.port if self.serial else ""}
+
+    def _note_ping(self, results: list[dict]) -> None:
+        """Fold a ping table into the state, so Config shows it without being asked."""
+        mcu = self.microcontroller
+        mcu["results"] = results
+        mcu["checked_at"] = time.time()
+        port = self.serial.port if self.serial else mcu.get("port")
+        mine = next((r for r in results if _same_port(r["port"], port)), None)
+        if mine is not None and mine["ok"]:
+            mcu.update(state="answered", reply=mine["reply"], ms=mine["ms"],
+                       device=_device_of(mine["reply"]))
+        elif mine is not None and mcu.get("state") == "answered":
+            mcu.update(state="silent", ms=None)
+
+    def _save_microcontroller_port(self, port: str) -> bool:
+        """Persist the port that answered, so the next start begins with it.
+
+        `config/core.env` is what every launcher reads; a dashboard pin, if there is one,
+        is moved with it, because a pin beats the file and a stale one would put the old
+        port back on the Config page and apply it on the next Restart. A simulator's pty
+        is not saved: it is a different number every run, and writing it would make the
+        next start with a real board look for a device that no longer exists.
+        """
+        if port.startswith("/dev/pts/"):
+            log.info("microcontroller on %s is a simulator pty; not saved", port)
+            return False
+        try:
+            if _env_value("config/core.env", "STM32_PORT") != port:
+                _write_env("config/core.env", "STM32_PORT", port)
+            if self.settings.saved().get("serial_port") not in (None, port):
+                self.settings.set("serial_port", port)
+        except (OSError, ValueError) as exc:
+            log.warning("could not save the microcontroller port %s: %s", port, exc)
+            return False
+        return True
+
+    def _ensure_link(self, port: str) -> SerialLink:
+        """The serial link, created if there was none, pointed at `port`."""
+        if self.serial is None:
+            self.serial = SerialLink(port, on_event=self._on_serial)
+            if self.orch is not None and self.orch.tools is not None:
+                self.orch.tools.serial = self.serial
+            # ABSENT is sticky in Health.touch (it ignores a service that is absent), so
+            # a link that did not exist when the first poll ran has to be un-absented.
+            svc = self.health.services.get("serial")
+            if svc is not None and svc.state is State.ABSENT:
+                svc.state = State.UNKNOWN
+        else:
+            self.serial.port = port
+        return self.serial
+
+    def _start_link(self) -> None:
+        """Run the link's connect/heartbeat loop, once."""
+        if self.serial is None or (self._link_task and not self._link_task.done()):
+            return
+        self._link_task = asyncio.get_running_loop().create_task(self.serial.run())
+
+    async def _discover_microcontroller(self) -> dict:
+        """Ping every serial port with `{PING_robot}` and adopt the one that answers.
+
+        Every start, in every mode (`./run.sh all|headless|slint`). A board that has
+        just been plugged in or reset is not listening for a second or two, so it tries
+        up to three times with a longer wait each time, and then stops -- it never loops
+        against a port that is simply not there.
+
+            grep 'robot-core: microcontroller' .cache/tmp/core.log
+        """
+        mcu = self.microcontroller
+        configured = self.serial.port if self.serial else None
+        candidates = _port_candidates(configured)
+        results: list[dict] = []
+        answered: list[dict] = []
+        for attempt, timeout in enumerate(self.DISCOVERY_TIMEOUTS_S, start=1):
+            if not candidates:
+                break
+            try:
+                results = await ping_ports(candidates, None, timeout_s=timeout)
+            except Exception:
+                log.exception("microcontroller: ping failed")
+                continue
+            answered = [r for r in results if r["ok"]]
+            if answered:
+                break
+            log.info("microcontroller: nothing answered {PING_robot} on %d port(s) "
+                     "(attempt %d of %d)", len(candidates), attempt,
+                     len(self.DISCOVERY_TIMEOUTS_S))
+        for r in results:
+            if r["ok"]:
+                log.info("microcontroller: %s answered %s in %s ms",
+                         r["port"], r["reply"], r["ms"])
+            else:
+                log.info("microcontroller: %s silent (%s)", r["port"],
+                         r["error"] or r["reply"] or "no answer")
+        mcu.update(results=results, checked_at=time.time())
+
+        if answered:
+            keep = next((r for r in answered if _same_port(r["port"], configured)), None)
+            chosen = keep or answered[0]
+            if len(answered) > 1 and keep is None:
+                log.warning("microcontroller: %d ports answered (%s); using %s",
+                            len(answered), ", ".join(r["port"] for r in answered),
+                            chosen["port"])
+            port = configured if keep else _stable_name(chosen["port"])
+            if configured and not keep:
+                log.warning("microcontroller: configured port %s did not answer, %s did "
+                            "-- using and saving %s", configured, chosen["port"], port)
+            self._ensure_link(port)
+            saved = self._save_microcontroller_port(port)
+            mcu.update(port=port, state="answered", device=_device_of(chosen["reply"]),
+                       reply=chosen["reply"], ms=chosen["ms"], saved=saved)
+            log.info("microcontroller: %s on %s%s", mcu["device"] or "board", port,
+                     " (saved to config/core.env)" if saved else "")
+        elif configured:
+            mcu.update(port=configured, state="silent", device=None, reply="", ms=None)
+            log.warning("microcontroller: %s did not answer {PING_robot}; connecting to "
+                        "it anyway (an older firmware answers only PING)", configured)
+        else:
+            mcu.update(port="", state="none", device=None, reply="", ms=None)
+            denied = [r["port"] for r in results
+                      if "Permission denied" in str(r.get("error") or "")]
+            if denied:
+                log.warning("microcontroller: %d port(s) could not be opened (permission "
+                            "denied) -- add this user to the dialout group: "
+                            "sudo usermod -aG dialout $USER, then log in again",
+                            len(denied))
+            else:
+                log.warning("microcontroller: no serial port answered {PING_robot} -- "
+                            "the body is not connected, or is on a port that is not "
+                            "listed")
+        await self.broadcast({"type": "ping_result", "results": results})
+        await self.broadcast({"type": "microcontroller", **self.mcu_snapshot()})
+        return mcu
+
+    async def _bring_up_body(self) -> None:
+        """Find the microcontroller, then run its link for the life of the process."""
+        try:
+            await self._discover_microcontroller()
+        except Exception:
+            log.exception("microcontroller: discovery failed")
+        if self.serial is None:
+            log.warning("no microcontroller found -- no heartbeat, no motion")
+            return
+        # Starts the 200 ms PING. If this process dies the heartbeat stops and the
+        # STM32's own watchdog zeroes the motors -- which is the entire safety design,
+        # and is why nothing here tries to stop the robot on shutdown.
+        log.info("serial link to the microcontroller: %s", self.serial.port)
+        self._start_link()
+        if self._link_task is not None:
+            await self._link_task
 
     async def _push_asr_settings(self) -> str:
         """Send robot-asr everything the dashboard has tuned for it.
@@ -1229,6 +1818,8 @@ async def main() -> int:
         first_min_chars=int(os.environ.get("CORE_FIRST_MIN_CHARS", "12")),
         filler=os.environ.get("CORE_FILLER", "1").strip().lower()
         not in ("0", "false", "no", "off"),
+        face_mode=("model" if os.environ.get("CORE_FACE_MODE", "phases").strip().lower()
+                   == "model" else "phases"),
     )
     if persona := os.environ.get("CORE_PERSONA"):
         config.persona = persona

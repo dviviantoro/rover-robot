@@ -41,8 +41,21 @@ STATIC = Path(__file__).resolve().parent / "static"
 
 client: CoreClient | None = None
 
+# Sampled on a timer by `_sample_monitor`, so the history belongs to the board rather
+# than to whichever browser happened to be open.
+HISTORY = monitor.History()
+SAMPLE_EVERY_S = 2.0
+
+# Public, and the only public page: what the robot is, for someone who has just been
+# given the address and has no account. The guard is a per-route call, so a page is
+# public by simply not asking for it -- no prefix list to get wrong, and `/` as a prefix
+# would have matched every route on the server.
+PUBLIC_PAGES = {
+    "/": "landing.html",
+}
+
 PAGES = {
-    "/": "index.html",
+    "/dashboard": "index.html",
     "/chat": "chat.html",
     "/headless": "headless.html",
     "/memory": "memory.html",
@@ -74,6 +87,14 @@ def register_routes() -> None:
             return JSONResponse({"error": "not found"}, status_code=404)
         return FileResponse(path, media_type="application/javascript",
                             headers={"Cache-Control": "no-store"})
+
+    # ---- the landing page (no session needed) -------------------------
+    for route, filename in PUBLIC_PAGES.items():
+        def _public(_filename: str = filename):
+            async def handler(_request: Request):
+                return _serve_page(_filename)
+            return handler
+        app.get(route, include_in_schema=False)(_public())
 
     # ---- pages (behind the auth middleware) ---------------------------
     for route, filename in PAGES.items():
@@ -196,10 +217,15 @@ def register_routes() -> None:
     # The dashboard samples the board itself rather than asking the orchestrator, so
     # the cost of a page left open lands on this process and not on the robot.
     @app.get("/api/monitor", include_in_schema=False)
-    async def _monitor(request: Request):
+    async def _monitor(request: Request, history: int = 0):
         if redirect := auth.guard(request):
             return redirect
-        return JSONResponse(monitor.snapshot())
+        current = monitor.snapshot()
+        # The Monitor page wants one reading; the dashboard wants the shape of the last
+        # few minutes. Same endpoint, because they are the same measurement.
+        if history:
+            current["history"] = HISTORY.as_dict()
+        return JSONResponse(current)
 
     # ---- the supervised services --------------------------------------
     #
@@ -277,7 +303,7 @@ def register_routes() -> None:
             "type": "hello", "settings": client.settings, "groups": client.groups,
             "values": client.values, "services": client.services,
             "models": client.models, "budget": client.budget,
-            "selection": client.selection,
+            "selection": client.selection, "overview": client.overview,
             "state": client.state, "connected": client.connected,
         })
 
@@ -332,15 +358,33 @@ def main() -> int:
     global client
     client = CoreClient(args.core_ws, args.ws_token)
 
+    async def _sample_monitor() -> None:
+        """Fill the history whether or not anyone is watching.
+
+        Reading /proc costs microseconds; the point of sampling on a timer is that the
+        minute BEFORE you opened the page is in the graph. A page-load-driven history
+        would only ever show you the consequences of your own arrival.
+        """
+        while True:
+            try:
+                HISTORY.add(monitor.snapshot())
+            except Exception:
+                log.exception("monitor sample failed")
+            await asyncio.sleep(SAMPLE_EVERY_S)
+
     @app.on_startup
     async def _startup() -> None:
         assert client is not None
         client.start()
+        app.state.sampler = asyncio.create_task(_sample_monitor())
         log.info("dashboard on http://%s:%d, orchestrator at %s",
                  args.host, args.port, args.core_ws)
 
     @app.on_shutdown
     async def _shutdown() -> None:
+        sampler = getattr(app.state, "sampler", None)
+        if sampler is not None:
+            sampler.cancel()
         if client is not None:
             await client.stop()
 

@@ -32,16 +32,30 @@
                color: var(--text-muted); margin: 0.2rem 0 0.9rem; }
   /* live input meter, shown on the Listening tab */
   .meter-card { margin-bottom: 1.1rem; }
-  .meter-row { display: flex; align-items: center; gap: 0.75rem; margin: 0.5rem 0 0.35rem; }
+  .meter-row { display: flex; align-items: center; gap: 0.75rem; margin: 1.5rem 0 0.35rem; }
   .meter {
     position: relative; flex: 1; height: 1.5rem; border-radius: var(--radius-sm);
-    background: var(--surface-3); overflow: hidden;
+    background: var(--surface-3);
   }
-  .meter .fill { position: absolute; inset: 0 auto 0 0; width: 0;
+  .meter .fill { border-radius: inherit; position: absolute; inset: 0 auto 0 0; width: 0;
                  background: linear-gradient(90deg, var(--success), var(--warning) 78%, var(--danger));
                  transition: width 0.08s linear; }
   .meter .peak { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--text); opacity: 0.65; transition: left 0.12s linear; }
   .meter .floor { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px dashed var(--text-faint); transition: left 0.5s ease; }
+  /* draggable trigger threshold: floor + the gate margin, in dBFS */
+  .meter { touch-action: none; }
+  .meter .knob { position: absolute; top: -3px; bottom: -3px; 
+                 cursor: ew-resize; z-index: 2; outline: none; width: 14px; margin-left: -7px; }
+  .meter .knob.locked { cursor: not-allowed; opacity: 0.6; }
+  .meter .knob::before { content: ''; position: absolute; left: 6px; top: 0; bottom: 0; width: 2px;
+                         background: var(--info); }
+  .meter .knob::after { content: ''; position: absolute; left: 1px; top: 50%; width: 12px; height: 12px;
+                        margin-top: -6px; border-radius: 50%; background: var(--info);
+                        box-shadow: 0 0 0 2px var(--surface); }
+  .meter .knob:focus-visible::after { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent-glow); }
+  .meter .knob .tip { position: absolute; bottom: 130%; left: 50%; transform: translateX(-50%);
+                      font-size: 0.68rem; padding: 1px 5px; border-radius: 4px; white-space: nowrap;
+                      background: var(--info); color: #fff; font-variant-numeric: tabular-nums; }
   .meter-scale { display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-faint); font-variant-numeric: tabular-nums; }
   .speech-pill { min-width: 6.5rem; text-align: center; }
   .meter-stats { display: flex; gap: 1.25rem; font-size: 0.78rem; color: var(--text-muted); font-variant-numeric: tabular-nums; margin-top: 0.4rem; }
@@ -59,32 +73,11 @@
   #toast.warn { background: var(--warning-soft); color: var(--warning-soft-text); border-color: transparent; }
 </style>
 </head>
-<body>
-<nav class="topnav">
-  <a class="brand" href="/">Robot</a>
-  <div class="links">
-    <a href="/chat">Chat</a>
-    <a href="/headless">Headless</a>
-    <a href="/knowledge">Knowledge</a>
-    <a href="/memory">Memory</a>
-    <a href="/monitor">Monitor</a>
-    <a href="/logs">Logs</a>
-    <a href="/services">Services</a>
-    <a href="/config" class="current">Config</a>
-  </div>
-  <div class="right"><a class="btn-ghost" href="/logout">Sign out</a></div>
-</nav>
+<body data-page="config">
+<nav class="sidebar"></nav>
 <div class="page wide">
   <h1>Config</h1>
-  <p class="hint">
-    Everything the robot exposes, tunable without SSH. Which group a setting is in is
-    declared once in the orchestrator and drives both this page and how the change is
-    applied — so a control here cannot claim to apply live while secretly needing a
-    restart.
-    Starting, stopping and restarting the processes themselves lives on
-    <a href="/services">Services</a> — that page reads the board directly, so it still
-    works when the orchestrator is the thing that is down.
-  </p>
+  <p class="hint measure">Everything the robot exposes, tunable without SSH. Live settings apply at once; the rest restart one service and say so.</p>
   <div class="statusline">
     <span class="dot" id="live-dot"></span><span id="live-text">connecting…</span>
   </div>

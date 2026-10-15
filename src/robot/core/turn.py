@@ -23,6 +23,7 @@ import uuid
 from dataclasses import dataclass, field
 
 from robot.common import ipc
+from robot.core import face as face_mod
 from robot.core import language as lang_mod
 from robot.core.chunker import SentenceChunker
 from robot.core.llm import LlamaClient, LLMError, Outcome as LlamaOutcome
@@ -86,7 +87,16 @@ class TurnMetrics:
     asr_decode_s: float = 0.0
     audio_s: float = 0.0
     chunks: int = 0
+    # Silence inside the reply, as robot-tts measured it: how long the voice was cut out
+    # and how many times. Zero is the goal; anything else says the speech was not smooth.
+    underrun_s: float = 0.0
+    underruns: int = 0
     tokens: int = 0
+    # As llama.cpp counted them, not as we guessed. `cached_tokens` is the prompt prefix
+    # it reused: the persona is re-sent every turn and almost entirely re-used, so
+    # without it the prompt reads far more expensive than it is.
+    prompt_tokens: int = 0
+    cached_tokens: int = 0
     tools: int = 0
     retrieved: int = 0
     language: str | None = None
@@ -131,6 +141,10 @@ class TurnMetrics:
             "first_tool_ms": self._ms(self.first_tool),
             "audio_s": round(self.audio_s, 2),
             "chunks": self.chunks,
+            "underrun_s": round(self.underrun_s, 2),
+            "underruns": self.underruns,
+            "prompt_tokens": self.prompt_tokens,
+            "cached_tokens": self.cached_tokens,
             "tokens": self.tokens,
             "tools": self.tools,
             "retrieved": self.retrieved,
@@ -218,6 +232,9 @@ class Config:
     #            the server beyond streaming, so it still works against a build with no
     #            grammar support.
     reply_format: str = "json"
+    # `phases`: the face follows the turn (blink while acknowledging, talking while answering,
+    # random when idle -- robot.core.face). `model`: whatever the model wrote.
+    face_mode: str = "phases"
     # Hard upper bound on a single turn. Nothing below this line is allowed to hang the
     # robot: added in M9 after a turn sat unfinished for 4.5 minutes waiting on a
     # speaker that never reported back. At ~18 tok/s a 200-token reply takes ~11 s and
@@ -259,12 +276,28 @@ class Orchestrator:
         # narrating a drive that never happened (serial-protocol.md).
         self._hardware_notes: list[str] = []
         self._tool_tasks: set[asyncio.Task] = set()
+        # The last reply object handed to the body. A link that was down when it was
+        # produced (startup, a replug, a rebooted board) gets it again on connect.
+        self._body_fields: dict | None = None
         self.history = History(max_turns=self.config.history_turns)
         self.state = State.IDLE
         self.last_language: str | None = None
+        # Lifetime token usage, for the dashboard. Reset only by restarting robot-core,
+        # which is the honest scope: there is no store behind it and pretending it
+        # survives a restart would be worse than saying it does not.
+        self.usage: dict[str, int] = {"turns": 0, "prompt_tokens": 0,
+                                      "completion_tokens": 0, "cached_tokens": 0}
         # What the recogniser reported for the utterance being handled, if it
         # reports anything. Set per turn; None under the sherpa engine.
         self._asr_language: str | None = None
+        # What the PERSON actually spoke this turn, as (tag, how) -- see
+        # `language.heard`. Not the same thing as the line above: that is whisper's id,
+        # which is wrong on an English sentence built around an Indonesian name, and this
+        # is whisper's id corrected by the words it decoded. It is what the acknowledgement,
+        # the prompt and the first spoken chunk all fall back on.
+        self._heard: tuple[str, str] | None = None
+        # Has this turn's answering face been shown yet. Once, at the first chunk.
+        self._answer_face_shown = False
         # 1 when this turn opened with a spoken acknowledgement, so the answer's own
         # chunks carry the sequence numbers after it rather than colliding with it.
         self._filler_seq: int = 0
@@ -400,6 +433,8 @@ class Orchestrator:
                 self._current.finished = time.monotonic()
                 self._current.audio_s = float(msg.get("audio_s") or 0.0)
                 self._current.chunks = int(msg.get("chunks") or 0)
+                self._current.underrun_s = float(msg.get("underrun_s") or 0.0)
+                self._current.underruns = int(msg.get("underruns") or 0)
                 await self._complete()
         elif kind == "error":
             # Failure design: the reply is still real, the speaker just failed.
@@ -644,9 +679,17 @@ class Orchestrator:
             # A typed turn has no recogniser to report a language, so without this the
             # hint falls back to whatever the PREVIOUS turn was -- and an Arabic
             # question typed after an Indonesian one gets answered in Indonesian.
-            # Script is the honest half of the answer: it separates Arabic outright and
-            # cannot separate English from Indonesian, so it only speaks when it knows.
+            # `language_of` only speaks when the words say something -- Arabic by
+            # script, English or Indonesian by their function words -- and is None for
+            # a text of names, which is what leaves the previous turn to decide.
             self._asr_language = lang_mod.language_of(text)
+        self._heard = self._hear(text)
+        if self._asr_language and self._heard[0] != self._asr_language:
+            # The words overruled the recogniser. This is the correction that makes
+            # "Where is Pondok Modern Tazaka?" an English turn, and it is the line to
+            # look for when someone reports the robot answering in the wrong language.
+            log.info("recogniser said %s but the words are %s (%s): %r",
+                     self._asr_language, self._heard[0], self._heard[1], text[:60])
         metrics = TurnMetrics(
             turn_id=uuid.uuid4().hex[:8],
             # Every latency is measured from the end of speech, because that is the
@@ -664,6 +707,7 @@ class Orchestrator:
         self._current = metrics
         self.metrics.append(metrics)
         self._tts_ok = True
+        self._answer_face_shown = False
         self.state = State.THINKING
         await self._broadcast({"type": "transcript", "text": text, "turn_id": metrics.turn_id})
         # Before retrieval, before the prompt is even built. This is the whole point:
@@ -756,10 +800,10 @@ class Orchestrator:
         if notes:
             persona = f"{persona}\n\n{HARDWARE_NOTE_PREFIX}{'; '.join(notes)}"
 
-        # The recogniser's own language id, when there is one, is a better hint than
-        # "the previous turn was in X" -- it describes THIS utterance. Under the sherpa
-        # engine it is always None and this is exactly the previous behaviour.
-        hint = self._language_hint(text)
+        # What the person spoke THIS turn -- their own words first, the recogniser's id
+        # when the words say nothing, the previous turn only after that. `hint_how` is
+        # carried into the prompt because it decides how firmly the model is told.
+        hint, hint_how = self._heard or self._hear(text)
         # Fit the prompt to the context before sending it, not after being refused.
         budget = self.config.prompt_budget_tokens * prompt_mod.CHARS_PER_TOKEN
         if context:
@@ -769,7 +813,7 @@ class Orchestrator:
                          len(context) - len(kept))
             context = kept
         system = build_system_prompt(
-            persona, hint=hint,
+            persona, hint=hint, hint_source=hint_how,
             tools=self.tools is not None, context=context or None,
             reply_format=self.config.reply_format,
         )
@@ -793,7 +837,7 @@ class Orchestrator:
         if self.config.reply_format == "json":
             try:
                 resolved, spoken, raw = await self._generate_json(
-                    metrics, messages, chunker, hint, self._filler_seq)
+                    metrics, messages, chunker, hint, self._filler_seq, hint_how)
             except asyncio.CancelledError:
                 raise
             except (LLMError, OSError) as exc:
@@ -821,7 +865,7 @@ class Orchestrator:
                     if not lang_mod.looks_complete(head):
                         continue
                     declared, body = lang_mod.strip_declaration(head)
-                    resolved, how = lang_mod.resolve(declared, body, hint)
+                    resolved, how = lang_mod.resolve(declared, body, hint, hint_how)
                     metrics.language, metrics.how = resolved.tag, how
                     await self._broadcast({
                         "type": "language", "turn_id": metrics.turn_id,
@@ -844,7 +888,7 @@ class Orchestrator:
             # Stream ended. If it was too short to ever resolve, resolve now.
             if resolved is None:
                 declared, body = lang_mod.strip_declaration(head)
-                resolved, how = lang_mod.resolve(declared, body, self.last_language)
+                resolved, how = lang_mod.resolve(declared, body, hint, hint_how)
                 metrics.language, metrics.how = resolved.tag, how
                 body, calls = tool_parser.feed(body)
                 for call in calls:
@@ -861,6 +905,7 @@ class Orchestrator:
                 seq = await self._speak(metrics, chunk, resolved, seq)
                 spoken.append(chunk)
 
+            self._record_usage(metrics, outcome)
             metrics.truncated = outcome.truncated
             if outcome.truncated:
                 # Less damaging here than under `json` -- prose has no object to leave
@@ -882,19 +927,29 @@ class Orchestrator:
 
         await self._finish_reply(metrics, resolved, spoken, raw)
 
-    async def _generate_json(self, metrics, messages, chunker, hint, seq0: int = 0):
+    async def _generate_json(self, metrics, messages, chunker, hint, seq0: int = 0,
+                             hint_how: str = "previous-turn"):
         """Generate a structured reply, speaking `answer` as it is written.
 
         The body fields are not known until the object closes, so they are executed
         after the last word is queued -- which is the right order anyway: the STM32 gets
         one bounded DRIVE per turn rather than a marker mid-sentence, and the face is
         set to match a reply that has actually been said.
+
+        **The language each chunk is spoken in is read off that chunk.** The schema puts
+        `language` after `answer`, so the model's own declaration does not exist until
+        the last sentence is already out of the speaker. What does exist, when a chunk is
+        about to be sent, is the chunk -- and its words say what language it is in
+        (`language.resolve`). The person's language (`hint`) is only what is used when a
+        chunk says nothing, such as one made of a name. Resolving once from the first
+        token and keeping it is how an English reply came to be read out with the
+        Indonesian phonemiser whenever whisper had mistaken the question for Indonesian.
         """
         stream = reply_mod.AnswerStream()
         spoken: list[str] = []
         flushed = False
         seq = seq0
-        resolved: lang_mod.Language | None = None
+        resolved: lang_mod.Language | None = None    # what the last chunk was spoken in
 
         outcome = LlamaOutcome()
         async for piece in self.llm.stream(
@@ -907,20 +962,13 @@ class Orchestrator:
             if metrics.first_token is None:
                 metrics.first_token = time.monotonic()
             text = stream.feed(piece)
-            if text and resolved is None:
-                # The schema puts `language` after `answer`, so it is not available
-                # until the answer has closed -- and the first chunk has to be spoken
-                # in SOME voice before then. The script of what is being written plus
-                # the recogniser's own language id decide, which is what `resolve`
-                # already does; the declared value is checked against it at the end.
-                resolved, how = lang_mod.resolve(None, text, hint)
-                metrics.language, metrics.how = resolved.tag, how
-                await self._broadcast({"type": "language", "turn_id": metrics.turn_id,
-                                       "language": resolved.tag,
-                                       "language_source": how})
             if text:
                 for chunk in chunker.feed(text):
-                    seq = await self._speak(metrics, chunk, resolved, seq)
+                    chunk = lang_mod.strip_foreign_script(chunk)
+                    if not chunk:
+                        continue
+                    resolved, seq = await self._speak_chunk(
+                        metrics, chunk, resolved, hint, hint_how, seq)
                     spoken.append(chunk)
             if stream.done and not flushed:
                 # The answer string has CLOSED. Everything still to come -- language,
@@ -937,13 +985,22 @@ class Orchestrator:
                 # reason this format streams; this is the end of that thought.
                 flushed = True
                 for chunk in chunker.flush():
-                    seq = await self._speak(metrics, chunk, resolved, seq)
+                    chunk = lang_mod.strip_foreign_script(chunk)
+                    if not chunk:
+                        continue
+                    resolved, seq = await self._speak_chunk(
+                        metrics, chunk, resolved, hint, hint_how, seq)
                     spoken.append(chunk)
 
         for chunk in chunker.flush():
-            seq = await self._speak(metrics, chunk, resolved, seq)
+            chunk = lang_mod.strip_foreign_script(chunk)
+            if not chunk:
+                continue
+            resolved, seq = await self._speak_chunk(
+                metrics, chunk, resolved, hint, hint_how, seq)
             spoken.append(chunk)
 
+        self._record_usage(metrics, outcome)
         metrics.truncated = outcome.truncated
         if outcome.truncated:
             # The answer string never closed, so `language`, `foot_direction`,
@@ -962,16 +1019,29 @@ class Orchestrator:
 
         raw = stream.text()
         parsed = reply_mod.parse(raw)
-        if parsed.language and parsed.language != (resolved.tag if resolved else None):
-            # It declared a language that disagrees with the script we routed on. The
-            # declaration is the better signal for the NEXT turn's hint; the audio for
-            # this one has already gone out and re-speaking it would be worse.
-            log.info("reply declared %r, spoke as %r", parsed.language,
-                     resolved.tag if resolved else None)
-            resolved = lang_mod.LANGUAGES.get(parsed.language, resolved)
-            metrics.language = resolved.tag if resolved else metrics.language
-        await self._broadcast({"type": "reply_fields", "turn_id": metrics.turn_id,
-                               **parsed.as_dict()})
+        spoke_as = resolved.tag if resolved else None
+        if parsed.language and parsed.language != spoke_as:
+            # The model declared a language other than the one the chunks were spoken in.
+            # The audio has already gone out and re-speaking it would be worse; this is
+            # for the log, and for the reconciliation just below.
+            log.info("reply declared %r, spoke as %r", parsed.language, spoke_as)
+        # The reply's language as a whole, for the NEXT turn's fallback and the metrics.
+        # Judged on what was actually said: the words beat the declaration (a model that
+        # writes English and tags it `id` is wrong about its own reply), the declaration
+        # beats having nothing, and `parse` falls back to the raw JSON for an object that
+        # never closed, which is not something to classify.
+        final, how = lang_mod.resolve(
+            parsed.language, " ".join(spoken) or parsed.answer,
+            spoke_as or hint, metrics.how or hint_how)
+        if resolved is not None:
+            resolved = final
+            metrics.language, metrics.how = final.tag, how
+        if self.config.face_mode == "phases":
+            # The model's face is not used under the phase rules, and leaving it in the
+            # event would show one face on the dashboard and another on the robot.
+            parsed.face = face_mod.face_for(face_mod.ANSWERING)
+        await self._publish_fields({"type": "reply_fields", "turn_id": metrics.turn_id,
+                                    "phase": face_mod.ANSWERING, **parsed.as_dict()})
         await self._act(parsed, metrics)
         return resolved, spoken, raw
 
@@ -989,7 +1059,9 @@ class Orchestrator:
         # `[do:face happy]`, and what ToolBox reads first. Using the same key means
         # these calls are indistinguishable from the ones the old format made -- same
         # validation, same refusals, same activity-log events.
-        if parsed.face and parsed.face != "neutral":
+        # Under the phase rules the face was already shown when the answer began.
+        if (self.config.face_mode != "phases"
+                and parsed.face and parsed.face != "neutral"):
             calls.append(ToolCall(name="face", args={"_": parsed.face}))
         if parsed.hand_movement and parsed.hand_movement != "none":
             calls.append(ToolCall(name="gesture", args={"_": parsed.hand_movement}))
@@ -1037,8 +1109,14 @@ class Orchestrator:
     async def _speak(
         self, metrics: TurnMetrics, chunk: str, lang: lang_mod.Language | None, seq: int
     ) -> int:
+        chunk = lang_mod.strip_foreign_script(chunk)
+        if not chunk:
+            return seq
         if metrics.first_chunk is None:
             metrics.first_chunk = time.monotonic()
+        if not self._answer_face_shown:
+            self._answer_face_shown = True
+            await self._show_face(face_mod.ANSWERING, metrics.turn_id)
         self.state = State.SPEAKING
         await self._tts_send({
             "type": "speak", "id": metrics.turn_id, "seq": seq,
@@ -1051,19 +1129,55 @@ class Orchestrator:
         # in parallel with speech rather than after it.
         return seq + 1
 
+    async def _speak_chunk(
+        self, metrics: TurnMetrics, chunk: str, current: lang_mod.Language | None,
+        hint: str | None, hint_how: str, seq: int,
+    ) -> tuple[lang_mod.Language, int]:
+        """Speak one chunk in the language it is WRITTEN in. Returns (language, seq).
+
+        `current` is the language the previous chunk of this reply went out in, or None
+        for the first. A chunk whose words say nothing -- a name, a number, "Oke." -- is
+        spoken in `current`, and in the person's language (`hint`) when it is the first,
+        so a reply never flips voice on a word that carries no language at all. A chunk
+        that does say something is spoken in what it says, whatever the model was
+        speaking a sentence ago: this is what keeps an Indonesian sentence quoting an
+        English phrase from being read in one accent throughout.
+
+        The dashboard is told when the language changes, and only then.
+        """
+        if current is None:
+            fallback, source = hint, hint_how
+        else:
+            fallback, source = current.tag, metrics.how or hint_how
+        lang, how = lang_mod.resolve(None, chunk, fallback, source)
+        if current is None or lang.tag != current.tag:
+            metrics.language, metrics.how = lang.tag, how
+            await self._broadcast({"type": "language", "turn_id": metrics.turn_id,
+                                   # `language_source` -- how the language was decided --
+                                   # not `source`, which every turn event uses for the
+                                   # modality that started it. One key, one meaning.
+                                   "language": lang.tag, "language_source": how})
+        return lang, await self._speak(metrics, chunk, lang, seq)
+
+    def _hear(self, text: str) -> tuple[str, str]:
+        """(language, how) the person is speaking, for the utterance being handled.
+
+        Their words first, then the recogniser's id, then the previous turn -- see
+        `language.heard`, which is the whole rule and has the measurements behind it.
+        """
+        return lang_mod.heard(text, self._asr_language, self.last_language)
+
     def _language_hint(self, text: str) -> str | None:
         """The language to answer in, decided before the LLM has written anything.
 
-        A bare greeting is the one utterance whose language id cannot be trusted --
-        "halo" and "hello" are the same sound, and whisper has to pick one. Picking
-        wrong does not just mistranslate the greeting: the answer becomes the next
-        turn's hint, so a coin toss on "hi" can pin the whole conversation to a
-        language nobody chose. Route those to DEFAULT and let the first real sentence,
-        which has content to detect, decide from there.
+        This used to be whisper's id for the utterance, with a bare greeting forced to
+        DEFAULT because "halo" and "hello" are the same sound. Both halves were wrong in
+        ways the logs showed: whisper called "Where is Pondok Modern Tazaka?" Indonesian
+        because of the name, and "Hello?" was answered in Indonesian because it was a
+        greeting. The words decide now (`language.heard`), and a greeting follows its
+        own spelling.
         """
-        if lang_mod.is_general_greeting(text):
-            return lang_mod.DEFAULT
-        return self._asr_language or self.last_language
+        return self._hear(text)[0]
 
     async def _speak_filler(self, metrics: TurnMetrics, text: str) -> int:
         """Acknowledge out loud, immediately. Returns the next free `seq`.
@@ -1074,6 +1188,11 @@ class Orchestrator:
 
         The state stays THINKING. The robot is thinking -- it is merely saying so.
         """
+        if metrics.source == "text":
+            # Nothing is said aloud for a typed turn, but the phase still happens and the
+            # dashboard shows its Reply JSON, with no words in it.
+            await self._show_face(face_mod.ACKNOWLEDGEMENT, metrics.turn_id, answer="")
+            return 0
         if not self.config.filler or metrics.source != "voice" or not self._tts_ok:
             return 0
         tag = self._language_hint(text) or lang_mod.DEFAULT
@@ -1083,10 +1202,32 @@ class Orchestrator:
                               "text": phrase, "lang": tag})
         await self._broadcast({"type": "chunk", "turn_id": metrics.turn_id, "seq": 0,
                                "text": phrase, "filler": True})
+        await self._show_face(face_mod.ACKNOWLEDGEMENT, metrics.turn_id,
+                              answer=phrase, language=tag)
         return 1
 
+    def _record_usage(self, metrics: TurnMetrics, outcome) -> None:
+        """Fold one turn's token counts into the metrics and the lifetime total.
+
+        `metrics.tokens` was already counted here, one per streamed delta, which counts
+        DELTAS and not tokens -- llama.cpp coalesces and a delta can carry several. The
+        tokeniser's own number replaces it when the server reports one; the counted
+        value stays as the fallback so a server without `timings` still shows something.
+        """
+        if getattr(outcome, "completion_tokens", 0):
+            metrics.tokens = outcome.completion_tokens
+        metrics.prompt_tokens = getattr(outcome, "prompt_tokens", 0)
+        metrics.cached_tokens = getattr(outcome, "cached_tokens", 0)
+        self.usage["turns"] += 1
+        self.usage["prompt_tokens"] += metrics.prompt_tokens
+        self.usage["completion_tokens"] += metrics.tokens
+        self.usage["cached_tokens"] += metrics.cached_tokens
+
     async def _speak_unavailable(self, metrics: TurnMetrics) -> None:
-        tag = self.last_language or lang_mod.DEFAULT
+        # In the language the person just spoke: an apology in the wrong one is the one
+        # reply that cannot be asked to repeat itself.
+        tag = (self._heard[0] if self._heard else None) or self.last_language \
+            or lang_mod.DEFAULT
         line = UNAVAILABLE_LINE.get(tag, UNAVAILABLE_LINE["en"])
         await self._broadcast({"type": "reply", "turn_id": metrics.turn_id,
                                "text": line, "language": tag})
@@ -1112,6 +1253,75 @@ class Orchestrator:
             log.info("turn %s: %s", self._current.turn_id, self._current.as_dict())
             await self._broadcast({"type": "turn_done", **self._current.as_dict()})
             self._current = None
+            await self._show_face(face_mod.IDLE, answer="")
+
+    async def _publish_fields(self, fields: dict) -> None:
+        """Show a reply object on the dashboard AND hand it to the body.
+
+        One place for both, so the object on the screen and the line on the wire cannot
+        drift apart -- acknowledgement, answer and idle all go through here. The serial
+        write is a task and not an await: it is information for the body, and a slow or
+        absent body must not hold up the broadcast or the speech behind it.
+        """
+        await self._broadcast(fields)
+        self._body_fields = fields
+        link = getattr(self.tools, "serial", None) if self.tools is not None else None
+        if link is None or not hasattr(link, "send_reply"):
+            return
+        task = asyncio.create_task(link.send_reply(fields))
+        self._tool_tasks.add(task)
+        task.add_done_callback(self._tool_tasks.discard)
+
+    def resync_body(self) -> None:
+        """Send the body the state it should be in, once the link is (re)established.
+
+        The idle object at startup is produced before the serial link has connected, and
+        a board that rebooted or was replugged has forgotten everything: without this it
+        sits on whatever it powered up with until the next turn ends.
+        """
+        link = getattr(self.tools, "serial", None) if self.tools is not None else None
+        if link is None or self._body_fields is None or not hasattr(link, "send_reply"):
+            return
+        fields = self._body_fields
+        for coro in (link.send_reply(fields),
+                     self.tools.dispatch(ToolCall(name="face",
+                                                  args={"_": fields.get("face", "neutral")}))):
+            task = asyncio.create_task(coro)
+            self._tool_tasks.add(task)
+            task.add_done_callback(self._tool_tasks.discard)
+
+    # -- the face ----------------------------------------------------------
+    async def _show_face(self, phase: str, turn_id: str | None = None,
+                         answer: str | None = None, language: str | None = None) -> None:
+        """Put the face a phase calls for on the dashboard and the body. No-op in `model` mode.
+
+        With `answer` given the phase also gets its own Reply JSON -- the same shape the
+        model's reply has, with `phase` added -- so the dashboard shows all three flows
+        (acknowledgement, answering, idle) as one kind of object. The answering phase
+        passes nothing: its Reply JSON is the model's real one, sent when the reply ends.
+
+        Cosmetic by design: the body's reply is dropped rather than returned, because a
+        refused face fed back to the model as a hardware note would make it apologise for
+        an expression nobody asked it about.
+        """
+        if self.config.face_mode != "phases":
+            return
+        face = face_mod.face_for(phase)
+        await self._broadcast({"type": "face", "phase": phase, "face": face,
+                               "turn_id": turn_id})
+        if answer is not None:
+            await self._publish_fields({
+                "type": "reply_fields", "turn_id": turn_id, "phase": phase,
+                "answer": answer,
+                "language": language or self.last_language or lang_mod.DEFAULT,
+                "foot_direction": "none", "foot_step": 0, "hand_movement": "none",
+                "face": face, "style": "neutral"})
+        if self.tools is None:
+            return
+        task = asyncio.create_task(
+            self.tools.dispatch(ToolCall(name="face", args={"_": face})))
+        self._tool_tasks.add(task)
+        task.add_done_callback(self._tool_tasks.discard)
 
     # -- observers (measurement now, UI in M8) -----------------------------
     def add_listener(self, peer: ipc.Peer) -> None:

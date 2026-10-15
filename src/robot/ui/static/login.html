@@ -20,7 +20,7 @@
 <body>
 <form class="card login" method="post" action="/login">
   <h1>Robot dashboard</h1>
-  <p class="sub">This page can drive the robot.</p>
+  <p class="sub">This page can drive the robot. <a href="/">What is this?</a></p>
   <div class="error" id="error" hidden>Wrong username or password.</div>
   <div class="field">
     <label for="username">Username</label>
@@ -30,7 +30,7 @@
     <label for="password">Password</label>
     <input type="password" id="password" name="password" autocomplete="current-password" required>
   </div>
-  <input type="hidden" id="next" name="next" value="/">
+  <input type="hidden" id="next" name="next" value="/dashboard">
   <button class="btn-primary" type="submit">Sign in</button>
 </form>
 <script>

@@ -65,6 +65,13 @@ log = logging.getLogger(__name__)
 
 MODES = ("off", "stream", "utterance")
 
+# `on` is what the dashboard's toggle sends. It means `utterance`: the cheaper of the two,
+# cleaning only what the VAD already decided was speech rather than every frame. The two
+# precise modes stay available to an env file -- a toggle is the right control for someone
+# deciding whether to suppress at all, and the wrong one for someone measuring which.
+ALIASES = {"on": "utterance", "1": "utterance", "true": "utterance",
+           "0": "off", "false": "off"}
+
 DEFAULT_MODEL = "models/denoise/gtcrn_simple.onnx"
 
 
@@ -148,7 +155,7 @@ class NoiseControl:
         self.seconds_in = 0.0
         self.seconds_cpu = 0.0
 
-        wanted = self.settings.mode
+        wanted = ALIASES.get(self.settings.mode, self.settings.mode)
         if wanted not in MODES:
             self.detail = f"unknown mode {wanted!r}; expected one of {'|'.join(MODES)}"
             log.error("noise suppression disabled: %s", self.detail)

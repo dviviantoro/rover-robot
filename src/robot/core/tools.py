@@ -45,7 +45,8 @@ MARKER_CLOSE = "]"
 # swallowing the rest of the reply waiting for a bracket that never comes.
 MAX_MARKER_LEN = 240
 
-FACES = ("happy", "thinking", "listening", "speaking", "sad", "neutral")
+# `talking` and `blink` come from the phase rules (robot.core.face).
+FACES = ("happy", "thinking", "listening", "speaking", "sad", "neutral", "talking", "blink", "random")
 GESTURES = ("wave", "point", "home", "nod")
 
 

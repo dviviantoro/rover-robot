@@ -6,13 +6,18 @@
 <title>Robot — Logs</title>
 <link rel="stylesheet" href="/style.css">
 <style>
+  /* A source whose service is not running: still reachable, because the reason it is
+     down is in its log -- but no longer competing with the ones that are live. */
+  .tabs button.dim .offdot {
+    display: inline-block; width: 0.4rem; height: 0.4rem; border-radius: 999px;
+    background: var(--danger); margin-left: 0.35rem; vertical-align: 0.05rem;
+  }
+  .line .src { color: var(--violet); }
+</style>
+<style>
   .toolbar { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.9rem; }
   .toolbar select, .toolbar input[type="text"] { width: auto; }
   .toolbar .grow { flex: 1; min-width: 10rem; }
-  .seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); overflow: hidden; }
-  .seg button { border: none; border-radius: 0; background: var(--surface); padding: 0.42rem 0.7rem; font-size: 0.8rem; color: var(--text-muted); }
-  .seg button + button { border-left: 1px solid var(--border); }
-  .seg button.on { background: var(--accent-soft); color: var(--accent-soft-text); }
 
   #stream {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.775rem;
@@ -37,32 +42,15 @@
   .counts { font-size: 0.76rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 </style>
 </head>
-<body>
-<nav class="topnav">
-  <a class="brand" href="/">Robot</a>
-  <div class="links">
-    <a href="/chat">Chat</a>
-    <a href="/headless">Headless</a>
-    <a href="/knowledge">Knowledge</a>
-    <a href="/memory">Memory</a>
-    <a href="/monitor">Monitor</a>
-    <a href="/logs" class="current">Logs</a>
-    <a href="/services">Services</a>
-    <a href="/config">Config</a>
-  </div>
-  <div class="right"><a class="btn-ghost" href="/logout">Sign out</a></div>
-</nav>
+<body data-page="logs">
+<nav class="sidebar"></nav>
 <div class="page wide">
   <h1>Logs</h1>
-  <p class="hint">
-    The orchestrator streams its own records here as they happen — no SSH, no guessing
-    which file to tail. The other services run as separate processes, so their output is
-    read from their log file, or from the journal when systemd is running the stack.
-  </p>
+  <p class="hint measure">A dimmed source is a service that is not running — its log is still where the reason will be.</p>
 
   <div class="toolbar">
-    <div class="seg" id="source-seg"></div>
-    <span class="seg" id="level-seg">
+    <div class="tabs" id="source-seg"></div>
+    <span class="tabs" id="level-seg">
       <button data-level="DEBUG">Debug</button>
       <button data-level="INFO" class="on">Info</button>
       <button data-level="WARNING">Warn</button>
@@ -77,16 +65,13 @@
     <span class="counts" id="counts"></span>
     <span class="spacer"></span>
     <span class="counts">orchestrator log level</span>
-    <span class="seg" id="setlevel-seg">
+    <span class="tabs" id="setlevel-seg">
       <button data-set="DEBUG">Debug</button>
       <button data-set="INFO">Info</button>
       <button data-set="WARNING">Warn</button>
     </span>
   </div>
-  <p class="hint" id="level-note" style="margin-top:-0.4rem">
-    Debug makes the orchestrator log the model's raw reply before any stripping — the
-    fastest way to see why a language tag or an action marker went wrong.
-  </p>
+  <p class="hint measure" id="level-note" style="margin-top:-0.4rem">Debug logs the model's raw reply before any stripping.</p>
 
   <div id="stream"></div>
 </div>
