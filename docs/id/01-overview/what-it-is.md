@@ -56,16 +56,16 @@ Gambarnya ada di [halaman depan](../README.md). Tabel ini menunjukkan seberapa j
 **Arti "tubuh" di repositori ini.** Proyek dimulai dengan rancangan STM32, jadi firmware acuan dan simulator
 host bernama `firmware/stm32` dan `tools/stm32_sim`. Pengendali robot yang sebenarnya adalah ESP32 yang berbicara
 dengan protokol teks yang sama. Firmware acuan tetap menjadi deskripsi protokol yang bisa dijalankan, dan itulah
-yang dijalankan uji. Lihat [daftar istilah](../../en/01-overview/glossary.md#body-controller) *(Inggris)*.
+yang dijalankan uji. Lihat [daftar istilah](../01-overview/glossary.md#pengendali-tubuh-body-controller).
 
 ## Empat aturan yang menjelaskan sebagian besar keputusan
 
 1. **Satu kolam 8 GB.** CPU dan GPU berbagi, jadi melampauinya berarti proses dimatikan, bukan melambat. Setiap
-   model dihitung biayanya terhadap kolam sebelum dimuat. Lihat [Model dan memori](../../en/04-brain/models-and-memory.md) *(Inggris)*.
+   model dihitung biayanya terhadap kolam sebelum dimuat. Lihat [Model dan memori](../04-brain/models-and-memory.md).
 2. **Tubuh memiliki semua yang waktu nyata.** Jetson berkata *apa* ("maju sedikit"); mikrokontroler memutuskan
    *bagaimana* (kecepatan roda, waktu). Jika Jetson diam setengah detik, tubuh menghentikan motor sendiri.
 3. **Semuanya layanan yang diawasi.** Sembilan program kecil, masing-masing dinyalakan ulang jika mati, sehingga
-   satu kerusakan tidak menjatuhkan robot. Lihat [Otak](../../en/04-brain/README.md) *(Inggris)*.
+   satu kerusakan tidak menjatuhkan robot. Lihat [Otak](../04-brain/README.md).
 4. **Layar bersifat opsional.** Dashboard dan panel di robot hanyalah tamu: menutup atau merusakkannya tidak
    mengubah apa pun pada robot.
 
@@ -73,5 +73,5 @@ Daftar lengkap beserta alasannya ada di [`AGENTS.md`](../../../AGENTS.md) bagian
 
 ## Berikutnya
 
-* [Satu giliran, dari awal sampai akhir](../../en/01-overview/one-turn.md) *(Inggris)*: apa yang terjadi antara "halo" dan kata pertama.
-* [Otak](../../en/04-brain/README.md) *(Inggris)*: sembilan program dan cara mereka berkomunikasi.
+* [Satu giliran, dari awal sampai akhir](../01-overview/one-turn.md): apa yang terjadi antara "halo" dan kata pertama.
+* [Otak](../04-brain/README.md): sembilan program dan cara mereka berkomunikasi.

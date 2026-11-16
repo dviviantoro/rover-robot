@@ -102,7 +102,7 @@ sudo systemctl enable --now robot.target
 python scripts/hardening/failure_drills.py
 ```
 
-Penjelasan tiap langkah ada di [versi Inggris](../../en/07-operations/install.md#7-for-a-robot-that-is-left-running-production).
+Penjelasan tiap langkah ada di [versi Inggris](../07-operations/install.md#7-untuk-robot-yang-dibiarkan-menyala-produksi).
 Pengguna harus ada di grup `dialout` untuk membuka port serial tubuh.
 
 > **Belum pernah di-boot.** Tidak satu pun langkah di bagian 7 pernah dijalankan di papan ini. Siap-siap

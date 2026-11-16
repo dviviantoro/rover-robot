@@ -63,7 +63,7 @@ State is ❓ for every row, because no ESP32 firmware has been seen. Tick them a
 | 9 | End a timed move by itself and send `DONE DRIVE` (or `DONE WHEEL`) | `robot_tick` | `protocol_test.py --port` |
 | 10 | Answer `STOP` with `OK STOP` and stop at once | `robot.c` | by hand, wheels off the ground |
 | 11 | Accept **nine face names**: `happy neutral sad thinking listening speaking` and the three phase faces `blink talking random`. Unknown name: `ERR FACE unknown` | `tools.py` `FACES`, `core/face.py` | `FACE blink` by hand |
-| 12 | Decide what `HAND wave|point|home|nod` does **if there are no servos** ❓ see below | `tools.py`, `protocol_test.py` | by hand |
+| 12 | Decide what `HAND` (`wave`, `point`, `home`, `nod`) does **if there are no servos** ❓ see below | `tools.py`, `protocol_test.py` | by hand |
 | 13 | Answer `STATUS` with `STAT batt=<V> motors=<state> temp=<C> up=<ms>`, where `state` is `ok` or `stall` | `protocol_stat` | `STATUS` by hand |
 | 14 | Number the wheels **0 front-left, 1 front-right, 2 rear-left, 3 rear-right** and have `direction[]` verified | [Motion](motion.md) | `verify_wheels.py`, robot on blocks |
 | 15 | Drop an overlong line **whole**, including its tail, and not parse the tail as a command | `main.cpp` | send 300 bytes then a valid line |

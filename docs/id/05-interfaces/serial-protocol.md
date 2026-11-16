@@ -31,7 +31,7 @@ Pakai nama stabil (`/dev/serial/by-id/…`), bukan `ttyACM0`: di papan ini `ttyA
 | `STATUS` | Minta baris status, **tiap 2 detik** oleh `robot-core` | `STAT …` (tanpa `OK` terpisah) |
 | `WHEEL <i> <rad/s> <ms>` | **Hanya uji awal**: putar roda 0 sampai 3, melewati kinematika | `OK WHEEL`, nanti `DONE WHEEL` |
 | `{PING_robot}` | Penemuan: "siapa tubuhnya?" | `{"device":"…","status":"online"}` |
-| `{ … }` (apa pun yang diawali `{`) | [Baris balasan](../../en/05-interfaces/reply-json.md) *(Inggris)*: informasi | **tanpa jawaban** |
+| `{ … }` (apa pun yang diawali `{`) | [Baris balasan](../05-interfaces/reply-json.md): informasi | **tanpa jawaban** |
 
 Kata kerja boleh dalam huruf apa pun. `WHEEL` sengaja **tidak** dapat dijangkau dari model.
 

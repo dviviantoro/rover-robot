@@ -91,9 +91,9 @@ comment in each says to change both together.
 
 | Limit | Value | If exceeded |
 |---|---|---|
-| `|vx|` | 1.0 m/s | Jetson clamps; body answers `ERR DRIVE range` |
-| `|vy|` | 1.0 m/s | same |
-| `|omega|` | 3.0 rad/s | same |
+| `abs(vx)` | 1.0 m/s | Jetson clamps; body answers `ERR DRIVE range` |
+| `abs(vy)` | 1.0 m/s | same |
+| `abs(omega)` | 3.0 rad/s | same |
 | duration | 1 to 10 000 ms | `0` and over 10 000 are `ERR DRIVE range`; the Jetson clamps first |
 | `WHEEL` speed | 30 rad/s | `ERR WHEEL range` |
 | not a finite number | | `ERR DRIVE badargs` |

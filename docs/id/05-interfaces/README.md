@@ -29,14 +29,14 @@ flowchart LR
 | # | Antara | Transportasi | Format | Siapa yang dapat menjangkau | Halaman |
 |---|---|---|---|---|---|
 | 1 | `robot-core` dan **tubuh** | serial USB, 115200 baud | **baris teks ASCII** berakhir baris baru | kabelnya | [Protokol serial](serial-protocol.md) |
-| 2 | `robot-core` dan **model bahasa** | HTTP di `127.0.0.1:8080` | permintaan obrolan; balasan dibatasi **skema JSON** | komputer ini | [JSON balasan](../../en/05-interfaces/reply-json.md) *(Inggris)* |
-| 3 | `robot-core` ke **tubuh**, sekali per fase giliran | baris serial yang sama | satu **baris JSON** ringkas berawalan `{` | kabelnya | [JSON balasan](../../en/05-interfaces/reply-json.md#the-line-the-body-receives) *(Inggris)* |
-| 4 | Semua yang mengamati atau mengarahkan `robot-core` | **WebSocket** `ws://127.0.0.1:8090` | objek JSON, satu per pesan | loopback, plus **token** bila `CORE_WS_TOKEN` diatur | [WebSocket](../../en/05-interfaces/websocket.md) *(Inggris)* |
-| 5 | **Browser** dan `robot-ui` | HTTP `0.0.0.0:8081`, plus WebSocket di `/api/ws` | halaman, JSON | jaringan Anda, di balik **login** | [WebSocket](../../en/05-interfaces/websocket.md#through-the-dashboard) *(Inggris)* |
-| 6 | Alat baris perintah dan `robot-core` | soket Unix `run/core.sock` | JSON dipisah baris baru | izin berkasnya | [WebSocket](../../en/05-interfaces/websocket.md#the-local-socket) *(Inggris)* |
+| 2 | `robot-core` dan **model bahasa** | HTTP di `127.0.0.1:8080` | permintaan obrolan; balasan dibatasi **skema JSON** | komputer ini | [JSON balasan](../05-interfaces/reply-json.md) |
+| 3 | `robot-core` ke **tubuh**, sekali per fase giliran | baris serial yang sama | satu **baris JSON** ringkas berawalan `{` | kabelnya | [JSON balasan](../05-interfaces/reply-json.md#baris-yang-diterima-tubuh) |
+| 4 | Semua yang mengamati atau mengarahkan `robot-core` | **WebSocket** `ws://127.0.0.1:8090` | objek JSON, satu per pesan | loopback, plus **token** bila `CORE_WS_TOKEN` diatur | [WebSocket](../05-interfaces/websocket.md) |
+| 5 | **Browser** dan `robot-ui` | HTTP `0.0.0.0:8081`, plus WebSocket di `/api/ws` | halaman, JSON | jaringan Anda, di balik **login** | [WebSocket](../05-interfaces/websocket.md#lewat-dashboard) |
+| 6 | Alat baris perintah dan `robot-core` | soket Unix `run/core.sock` | JSON dipisah baris baru | izin berkasnya | [WebSocket](../05-interfaces/websocket.md#soket-lokal) |
 | 7 | `robot-core` dan `robot-asr`, `robot-tts`, `robot-vision` | soket Unix di `run/` | JSON dipisah baris baru (audio tidak pernah lewat) | izin berkasnya | |
 | 8 | `robot-asr` dan `robot-whisper`; `robot-core` dan `robot-embed` | HTTP di loopback | API bawaan mesinnya | komputer ini | |
-| 9 | **Orang dan berkas** dengan setiap program | `config/*.env`, `run/settings.json`, `.env` | baris `KUNCI=nilai`, JSON | sistem berkas | [Konfigurasi](../../en/05-interfaces/configuration.md) *(Inggris)* |
+| 9 | **Orang dan berkas** dengan setiap program | `config/*.env`, `run/settings.json`, `.env` | baris `KUNCI=nilai`, JSON | sistem berkas | [Konfigurasi](../05-interfaces/configuration.md) |
 
 Keterpaparan dalam satu kalimat: **hanya `robot-ui` yang mendengarkan di jaringan** (`UI_HOST=0.0.0.0`, port 8081, di
 balik login). WebSocket orkestrator terikat ke `127.0.0.1`, dan mesin-mesinnya juga ke `127.0.0.1`. Halaman terbuka
@@ -56,6 +56,6 @@ yang bisa menggerakkan robot lebih buruk daripada tanpa halaman, jadi `robot-ui`
 | Halaman | Isi |
 |---|---|
 | [Protokol serial](serial-protocol.md) | Setiap baris antara otak dan tubuh, dengan contoh, alasan galat, dan penemuan |
-| [JSON balasan](../../en/05-interfaces/reply-json.md) *(Inggris)* | Yang harus dijawab model, dan yang dikirim ke tubuh |
-| [WebSocket dan soket](../../en/05-interfaces/websocket.md) *(Inggris)* | Pesan yang dapat dikirim dan diterima dashboard, panel, atau skrip |
-| [Konfigurasi](../../en/05-interfaces/configuration.md) *(Inggris)* | Di mana tiap pengaturan berada, siapa yang menang, dan 32 pengaturan langsung |
+| [JSON balasan](../05-interfaces/reply-json.md) | Yang harus dijawab model, dan yang dikirim ke tubuh |
+| [WebSocket dan soket](../05-interfaces/websocket.md) | Pesan yang dapat dikirim dan diterima dashboard, panel, atau skrip |
+| [Konfigurasi](../05-interfaces/configuration.md) | Di mana tiap pengaturan berada, siapa yang menang, dan 32 pengaturan langsung |

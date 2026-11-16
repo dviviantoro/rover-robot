@@ -9,8 +9,8 @@ lagi atau memperdebatkannya tanpa informasi baru.
 
 | Halaman | Isi |
 |---|---|
-| [Batasan keras](../../en/08-decisions/hard-constraints.md) *(Inggris)* | Delapan aturan yang butuh persetujuan manusia untuk dilanggar, dengan alasan dan buktinya |
-| [Alternatif yang ditolak dan ditunda](../../en/08-decisions/rejected-alternatives.md) *(Inggris)* | Yang dipertimbangkan dan tidak dipilih, dengan angkanya, dan kondisi untuk melihatnya lagi |
+| [Batasan keras](../08-decisions/hard-constraints.md) | Delapan aturan yang butuh persetujuan manusia untuk dilanggar, dengan alasan dan buktinya |
+| [Alternatif yang ditolak dan ditunda](../08-decisions/rejected-alternatives.md) | Yang dipertimbangkan dan tidak dipilih, dengan angkanya, dan kondisi untuk melihatnya lagi |
 | [Menunggu pemilik proyek](open-decisions.md) | Pertanyaan terbuka dan catatan yang sudah dikoreksi |
 
 ## Catatan lengkap ada di mana

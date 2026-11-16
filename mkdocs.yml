@@ -132,17 +132,42 @@ nav:
       - id/README.md
       - 1 Gambaran umum:
           - id/01-overview/what-it-is.md
+          - id/01-overview/one-turn.md
+          - id/01-overview/glossary.md
+      - 2 Perangkat keras:
+          - id/02-hardware/README.md
+          - id/02-hardware/reference-wiring.md
       - 3 Firmware:
           - id/03-firmware/README.md
           - id/03-firmware/watchdog.md
           - id/03-firmware/motion.md
+          - id/03-firmware/try-it-without-a-board.md
+          - id/03-firmware/esp32-conformance.md
+      - 4 Otak:
+          - id/04-brain/README.md
+          - id/04-brain/voice-pipeline.md
+          - id/04-brain/models-and-memory.md
+          - id/04-brain/knowledge.md
+          - id/04-brain/vision-and-people.md
+          - id/04-brain/reliability.md
       - 5 Antarmuka:
           - id/05-interfaces/README.md
           - id/05-interfaces/serial-protocol.md
+          - id/05-interfaces/reply-json.md
+          - id/05-interfaces/websocket.md
+          - id/05-interfaces/configuration.md
+      - 6 Dashboard dan panel:
+          - id/06-dashboard/README.md
+          - id/06-dashboard/pages.md
+          - id/06-dashboard/panel.md
       - 7 Operasional:
           - id/07-operations/README.md
           - id/07-operations/install.md
           - id/07-operations/running.md
+          - id/07-operations/systemd.md
+          - id/07-operations/troubleshooting-index.md
       - 8 Keputusan:
           - id/08-decisions/README.md
+          - id/08-decisions/hard-constraints.md
+          - id/08-decisions/rejected-alternatives.md
           - id/08-decisions/open-decisions.md

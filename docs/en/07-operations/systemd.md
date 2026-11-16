@@ -51,7 +51,7 @@ is unreachable. A hard dependency would turn one crash into a cascade.
 |---|---|---|
 | `ProtectSystem=strict`, `PrivateTmp=true` | all | the services cannot write outside what they are given |
 | `ReadWritePaths=` `run` and `config` | core | Apply, the Hardware tab and microcontroller discovery write `config/*.env` |
-| **No** `NoNewPrivileges` | core, ui, tts | `robot-core` supervises the others with `sudo -n systemctl start|stop|restart robot-<x>`, and `sudo` refuses to run under that flag. **The sudoers rule is the privilege boundary** (six units, three verbs). Proposed 2026-10-22, **awaiting the owner's confirmation** |
+| **No** `NoNewPrivileges` | core, ui, tts | `robot-core` supervises the others with `sudo -n systemctl` with `start`, `stop` or `restart` on `robot-<x>`, and `sudo` refuses to run under that flag. **The sudoers rule is the privilege boundary** (six units, three verbs). Proposed 2026-10-22, **awaiting the owner's confirmation** |
 | `Environment=XDG_RUNTIME_DIR`, `PULSE_SERVER` | asr, tts, core | a system unit gets neither, and PulseAudio then answers "Connection refused". Needs `enable-linger` |
 | `EnvironmentFile=` order | core | `vision.env`, then `core.env`, then `.env`: the token in `.env` must be read **after** `core.env` carries its empty `CORE_WS_TOKEN=` |
 | `OOMScoreAdjust=-500` | core | see above |

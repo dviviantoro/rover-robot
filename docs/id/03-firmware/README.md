@@ -15,7 +15,7 @@ otak diam**.
 >   pseudo-terminal oleh simulator host 🧪. Firmware ini **belum pernah berjalan di papan** ❓.
 > * Tubuh robot yang sebenarnya adalah **ESP32** (dilaporkan pemilik proyek 📐). **Firmware-nya tidak
 >   ada di repositori ini**, jadi tidak ada yang di sini yang diperiksa terhadapnya. Apa yang harus
->   dilakukan firmware ESP32 ada di [ESP32 sebagai tubuh](../../en/03-firmware/esp32-conformance.md) *(Inggris)*.
+>   dilakukan firmware ESP32 ada di [ESP32 sebagai tubuh](../03-firmware/esp32-conformance.md).
 
 ## Dua tubuh, satu kontrak
 
@@ -103,5 +103,5 @@ Masing-masing dicakup oleh salah satu dari 21 fungsi uji di `test_main.c` 🧪.
 |---|---|
 | [Watchdog](watchdog.md) | Anda ingin tahu bagaimana robot berhenti saat otak mati |
 | [Gerak: dari kalimat ke empat roda](motion.md) | Anda memasang motor, memeriksa arah roda, atau mengubah geometri |
-| [Mencoba tubuh tanpa papan](../../en/03-firmware/try-it-without-a-board.md) *(Inggris)* | Anda ingin menjalankan uji dan simulator |
-| [ESP32 sebagai tubuh](../../en/03-firmware/esp32-conformance.md) *(Inggris)* | Anda menulis atau memeriksa firmware sebenarnya |
+| [Mencoba tubuh tanpa papan](../03-firmware/try-it-without-a-board.md) | Anda ingin menjalankan uji dan simulator |
+| [ESP32 sebagai tubuh](../03-firmware/esp32-conformance.md) | Anda menulis atau memeriksa firmware sebenarnya |

@@ -21,7 +21,7 @@ pembuktiannya **tidak sama**.
 
 **Perubahan pada sebuah layanan belum selesai sebelum dibaca di bawah keduanya.** Keduanya membaca
 berkas env dengan cara berbeda (unit mempertahankan `# komentar` di akhir nilai; bash tidak), dan
-hanya systemd yang mengisolasi. Lihat [systemd](../../en/07-operations/systemd.md) *(Inggris)*.
+hanya systemd yang mengisolasi. Lihat [systemd](../07-operations/systemd.md).
 
 ## Halaman
 
@@ -29,8 +29,8 @@ hanya systemd yang mengisolasi. Lihat [systemd](../../en/07-operations/systemd.m
 |---|---|
 | [Memasang di papan baru](install.md) | Anda punya Jetson dan salinan kode, tetapi belum ada yang berjalan |
 | [Menjalankan sehari-hari](running.md) | Anda ingin menyalakan, menghentikan, melihat, atau mengukur robot |
-| [Produksi dengan systemd](../../en/07-operations/systemd.md) *(Inggris)* | Robot akan dibiarkan menyala tanpa pengawasan |
-| [Indeks gejala](../../en/07-operations/troubleshooting-index.md) *(Inggris)* | Robot "tuli", bisu, lambat, atau macet, atau dashboard kosong |
+| [Produksi dengan systemd](../07-operations/systemd.md) | Robot akan dibiarkan menyala tanpa pengawasan |
+| [Indeks gejala](../07-operations/troubleshooting-index.md) | Robot "tuli", bisu, lambat, atau macet, atau dashboard kosong |
 
 ## Keadaan papan ini pada 2026-11-16 ✅
 

@@ -127,3 +127,24 @@ def test_no_page_carries_a_secret_looking_assignment():
     hits = [f"{_rel(p)}: {m.group(0)[:40]}" for p in PAGES
             for m in pattern.finditer(p.read_text(encoding="utf-8"))]
     assert not hits, f"secret-looking text in the handbook: {hits}"
+
+
+@pytest.mark.parametrize("page", PAGES, ids=_rel)
+def test_table_rows_have_as_many_cells_as_their_header(page: Path):
+    """A `|` inside a code span still splits a cell in MkDocs (not on GitHub): `abs(vx)`, not `|vx|`."""
+    problems, fence, width = [], False, None
+    for number, line in enumerate(page.read_text(encoding="utf-8").split("\n"), 1):
+        if line.startswith("```"):
+            fence = not fence
+            continue
+        if fence:
+            continue
+        if not line.startswith("|"):
+            width = None
+            continue
+        cells = len(re.split(r"(?<!\\)\|", line.strip())) - 2
+        if re.match(r"^\|[\s:\-|]+\|$", line):
+            width = cells
+        elif width is not None and cells != width:
+            problems.append(f"line {number}: {cells} cells, header has {width}")
+    assert not problems, f"{_rel(page)}: " + "; ".join(problems)

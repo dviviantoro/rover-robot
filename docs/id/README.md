@@ -38,22 +38,21 @@ menyebutkan sejauh mana setiap klaim sudah terbukti:
 | Anda… | Baca |
 |---|---|
 | Baru, dan ingin tahu ini apa | [Apa itu robot ini](01-overview/what-it-is.md) |
-| Penasaran bagaimana percakapan berjalan | [Satu giliran, dari awal sampai akhir](../en/01-overview/one-turn.md) *(Inggris)* |
-| Mencari arti sebuah istilah | [Daftar istilah](../en/01-overview/glossary.md) *(Inggris)* |
-| Ingin tahu program mana mengerjakan apa | [Otak: proses dan port](../en/04-brain/README.md) *(Inggris)* |
-| Menelusuri robot yang lambat atau "tuli" | [Alur suara](../en/04-brain/voice-pipeline.md), lalu [Keandalan](../en/04-brain/reliability.md) *(Inggris)* |
-| Memilih atau mengganti model | [Model dan memori](../en/04-brain/models-and-memory.md) *(Inggris)* |
-| Mengajari robot dari dokumen | [Pengetahuan](../en/04-brain/knowledge.md) *(Inggris)* |
-| Menulis atau memeriksa firmware tubuh robot | [Tubuh: firmware](03-firmware/README.md), lalu [ESP32 sebagai tubuh](../en/03-firmware/esp32-conformance.md) *(Inggris)* |
+| Penasaran bagaimana percakapan berjalan | [Satu giliran, dari awal sampai akhir](01-overview/one-turn.md) |
+| Mencari arti sebuah istilah | [Daftar istilah](01-overview/glossary.md) |
+| Ingin tahu program mana mengerjakan apa | [Otak: proses dan port](04-brain/README.md) |
+| Menelusuri robot yang lambat atau "tuli" | [Alur suara](04-brain/voice-pipeline.md), lalu [Keandalan](04-brain/reliability.md) |
+| Memilih atau mengganti model | [Model dan memori](04-brain/models-and-memory.md) |
+| Mengajari robot dari dokumen | [Pengetahuan](04-brain/knowledge.md) |
+| Menulis atau memeriksa firmware tubuh robot | [Tubuh: firmware](03-firmware/README.md), lalu [ESP32 sebagai tubuh](03-firmware/esp32-conformance.md) |
 | Memastikan robot berhenti saat otaknya mati | [Watchdog](03-firmware/watchdog.md) |
 | Memeriksa arah putar roda | [Gerak: dari kalimat ke empat roda](03-firmware/motion.md) |
-| Memasang kabel tubuh robot | Bab perangkat keras masih direncanakan dan butuh pemilik proyek. Untuk sekarang: [`PROJECT_BRIEF.md`](../../planning/PROJECT_BRIEF.md) bagian Hardware dan [`robot_pins.h`](../../firmware/stm32/include/robot_pins.h), usulan yang belum pernah diperiksa pada papan sungguhan |
+| Memasang kabel tubuh robot | [Perangkat keras: apa yang diketahui](02-hardware/README.md) dan [kabel acuan](02-hardware/reference-wiring.md), usulan yang belum pernah diperiksa pada papan sungguhan. Kabel ESP32 yang sebenarnya butuh pemilik proyek |
+| Memakai dashboard atau layar di robot | [Dashboard dan panel](06-dashboard/README.md) |
 | Menyambungkan layar, skrip, atau tubuh baru | [Antarmuka](05-interfaces/README.md) |
-| Mengubah pengaturan, tetapi tidak terjadi apa-apa | [Konfigurasi](../en/05-interfaces/configuration.md) *(Inggris)* |
+| Mengubah pengaturan, tetapi tidak terjadi apa-apa | [Konfigurasi](05-interfaces/configuration.md) |
 | Memasang papan atau menyalakan robot | [Pemasangan](07-operations/install.md), lalu [Menjalankan sehari-hari](07-operations/running.md) |
-| Memakai dashboard atau layar di robot | [Dashboard dan panel](../en/06-dashboard/README.md) *(Inggris)* |
-| Mengetahui apa yang diketahui tentang perangkat keras | [Perangkat keras](../en/02-hardware/README.md) *(Inggris)* |
-| Robot "tuli", bisu, lambat, atau macet | [Indeks gejala](../en/07-operations/troubleshooting-index.md) *(Inggris)* |
+| Robot "tuli", bisu, lambat, atau macet | [Indeks gejala](07-operations/troubleshooting-index.md) |
 | Bertanya "mengapa bukan ROS 2?" atau "mengapa model itu?" | [Keputusan](08-decisions/README.md) |
 | Mencari yang menunggu keputusan pemilik | [Menunggu pemilik proyek](08-decisions/open-decisions.md) |
 | Akan mengubah kode (manusia atau AI) | [`AGENTS.md`](../../AGENTS.md) dulu |
@@ -61,29 +60,29 @@ menyebutkan sejauh mana setiap klaim sudah terbukti:
 
 ## Peta buku panduan
 
+Semua bab sudah tersedia dalam Bahasa Indonesia, diterjemahkan dari versi Inggris pada 2026-11-16.
+
 | Bab | Keadaan |
 |---|---|
-| **01 Gambaran umum**: apa itu robot ini, satu giliran, daftar istilah | ✍️ ditulis (Inggris) |
-| **02 Perangkat keras**: apa yang diketahui dan belum, sisi Jetson, kabel acuan | ◐ sebagian (Inggris): komponen, daya, dan kabel tubuh yang sebenarnya butuh pemilik proyek |
-| **03 Firmware**: tubuh acuan, watchdog, gerak dan tanda roda mecanum, simulator, apa yang harus dilakukan ESP32 | ✍️ ditulis. **Sudah diterjemahkan**: [ikhtisar](03-firmware/README.md), [watchdog](03-firmware/watchdog.md), [gerak](03-firmware/motion.md). Sisanya Inggris |
-| **04 Otak**: proses, alur suara, model dan memori, pengetahuan, penglihatan dan orang, keandalan | ✍️ ditulis (Inggris) |
-| **05 Antarmuka**: protokol serial, JSON balasan, WebSocket, referensi konfigurasi | ✍️ ditulis. **Sudah diterjemahkan**: [peta](05-interfaces/README.md), [protokol serial](05-interfaces/serial-protocol.md). Sisanya Inggris |
-| **06 Dashboard dan panel**: setiap halaman, dan panel di robot | ✍️ ditulis dari kode sumber (Inggris), belum ada tangkapan layar |
-| **07 Operasional**: pemasangan, mode menjalankan, systemd, indeks gejala | ✍️ ditulis. **Sudah diterjemahkan**: [ikhtisar](07-operations/README.md), [pemasangan](07-operations/install.md), [menjalankan](07-operations/running.md). Sisanya Inggris |
-| **08 Keputusan**: batasan keras, alternatif yang ditolak, yang menunggu pemilik proyek | ✍️ ditulis. **Sudah diterjemahkan**: [ikhtisar](08-decisions/README.md), [menunggu pemilik](08-decisions/open-decisions.md). Sisanya Inggris |
-
-Halaman depan dan sebagian halaman dari bab 01, 03, 05, 07, dan 08 sudah diterjemahkan; sisanya menyusul bertahap.
+| [**01 Gambaran umum**](01-overview/what-it-is.md): apa itu robot ini, satu giliran, daftar istilah | ✍️ ditulis |
+| [**02 Perangkat keras**](02-hardware/README.md): apa yang diketahui dan belum, sisi Jetson, kabel acuan | ◐ **sebagian**: komponen, daya, dan kabel tubuh yang sebenarnya butuh pemilik proyek |
+| [**03 Firmware**](03-firmware/README.md): tubuh acuan, watchdog, gerak, simulator, apa yang harus dilakukan ESP32 | ✍️ ditulis |
+| [**04 Otak**](04-brain/README.md): proses, alur suara, model dan memori, pengetahuan, penglihatan dan orang, keandalan | ✍️ ditulis |
+| [**05 Antarmuka**](05-interfaces/README.md): protokol serial, JSON balasan, WebSocket, konfigurasi | ✍️ ditulis |
+| [**06 Dashboard dan panel**](06-dashboard/README.md): setiap halaman, dan panel di robot | ✍️ ditulis dari kode sumber; **belum ada tangkapan layar** |
+| [**07 Operasional**](07-operations/README.md): pemasangan, menjalankan, systemd, indeks gejala | ✍️ ditulis |
+| [**08 Keputusan**](08-decisions/README.md): batasan keras, alternatif yang ditolak, yang menunggu pemilik proyek | ✍️ ditulis |
 
 ## Fakta singkat (per 2026-11-12)
 
 | | |
 |---|---|
 | Otak | Jetson Orin Nano 8 GB (Super), JetPack 6.2.1, tanpa desktop. **7620 MiB** RAM dapat dipakai, dibagi bersama oleh CPU dan GPU |
-| Tubuh | Mikrokontroler lewat serial USB: sebuah **ESP32** (dilaporkan pemilik proyek; lihat [daftar istilah](../en/01-overview/glossary.md#body-controller)) |
+| Tubuh | Mikrokontroler lewat serial USB: sebuah **ESP32** (dilaporkan pemilik proyek; lihat [daftar istilah](01-overview/glossary.md#pengendali-tubuh-body-controller)) |
 | Bahasa | Inggris, Indonesia, Arab; dipilih per kalimat dari kata-kata yang diucapkan |
 | Jaringan | Tidak ada yang keluar dari robot. Dashboard hanya ada di jaringan Anda sendiri |
 | Kecepatan ✅ | Dari akhir ucapan sampai kata pertama jawaban: **median 2181 ms, terbaik 1554 ms** (target 1500 ms). Kalimat singkat "oke, sebentar ya" bisa mulai dalam sekitar **123 ms** |
-| Pengujian | 1255 tes Python dan 634 pemeriksaan inti firmware, semuanya lulus pada 2026-11-16 |
+| Pengujian | 1378 tes Python dan 634 pemeriksaan inti firmware, semuanya lulus pada 2026-11-16 |
 | Proses | 9: `robot-llm`, `robot-whisper`, `robot-asr`, `robot-tts`, `robot-core`, `robot-embed`, `robot-vision`, `robot-ui`, `robot-face` |
 
 Angka berasal dari [`PROGRESS.md`](../../dev-docs/ai/PROGRESS.md) dan

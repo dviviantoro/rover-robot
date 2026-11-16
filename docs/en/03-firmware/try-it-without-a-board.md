@@ -70,7 +70,7 @@ because it had been built with `PROTOCOL_MAX_LINE 96`.
 
 ## Other Python tests that touch the body
 
-The wider suite (`python -m pytest tests/ -q`, 1255 tests, run on 2026-11-16) includes
+The wider suite (`python -m pytest tests/ -q`, 1378 tests, run on 2026-11-16) includes
 `tests/test_serial_reply.py` (reply JSON goes down the wire; `ping_ports` reaches every port),
 `tests/test_tools.py` (tool calls and their clamping) and `tests/test_hardware.py` (picking the
 serial port from the dashboard). `scripts/hardening/failure_drills.py` kills each service for real

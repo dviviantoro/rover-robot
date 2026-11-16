@@ -93,9 +93,9 @@ meminta keduanya diubah bersamaan.
 
 | Batas | Nilai | Jika terlampaui |
 |---|---|---|
-| `|vx|` | 1,0 m/s | Jetson menjepit; tubuh menjawab `ERR DRIVE range` |
-| `|vy|` | 1,0 m/s | sama |
-| `|omega|` | 3,0 rad/s | sama |
+| `abs(vx)` | 1,0 m/s | Jetson menjepit; tubuh menjawab `ERR DRIVE range` |
+| `abs(vy)` | 1,0 m/s | sama |
+| `abs(omega)` | 3,0 rad/s | sama |
 | durasi | 1 sampai 10 000 ms | `0` dan di atas 10 000 adalah `ERR DRIVE range`; Jetson menjepit dulu |
 | kecepatan `WHEEL` | 30 rad/s | `ERR WHEEL range` |
 | bukan angka terhingga | | `ERR DRIVE badargs` |

@@ -5,7 +5,7 @@
 the one that answers *"where are we right now?"* — keep it current in the same change as
 the work (AGENTS.md working rule 5).
 
-> **Last updated: 2026-11-16** · Python tests **1255 passing** (`python -m pytest tests/ -q`, run 2026-11-16)
+> **Last updated: 2026-11-16** · Python tests **1378 passing** (`python -m pytest tests/ -q`, run 2026-11-16)
 > · firmware core **634 checks, 0 failures** (`./firmware/stm32/run_native_tests.sh`; re-run 2026-11-16).
 
 ## How to keep this file honest
@@ -50,6 +50,14 @@ Currently configured on this robot (`./run.sh headless --check`, 2026-11-16): LL
 ---
 
 ## 2. Changelog (newest first)
+
+### 2026-11-17 — Every handbook page now has an Indonesian version
+
+* Translated the remaining 22 pages (`docs/id/` now mirrors `docs/en/`: 01 to 08), fixed the Indonesian nav and front door, and pointed
+  Indonesian links at Indonesian pages. English stays the master copy.
+* Found and fixed **eight table rows that rendered broken on the published site** (a `|` inside a code span splits a cell in MkDocs,
+  not on GitHub: `abs(vx)`, not `|vx|`). `tests/test_docs.py` now checks table shape (and the Indonesian pages' links, anchors and nav).
+* **Python tests: 1378 passed**, `mkdocs build` strict passes, 48 Mermaid blocks parse.
 
 ### 2026-11-16 (night) — Known issues #20 and #21 settled; stale records corrected
 
@@ -573,7 +581,7 @@ Add yours here. One row per feature; say *why* and *what it costs* (RAM first �
 | `VISION_USE_GPU=1`, measured | maybe worth it with a smaller LLM | **+0.6-1.3 GiB** | unmeasured |
 | A second camera / a USB camera | CSI only today | ~40 MiB each | not started |
 | Handbook chapter 02 hardware, finished with the real body's parts, power and wiring, and screenshots for chapter 06 (all other chapters are written) | phases 3 to 5 of the docs plan; 02 needs the real body's parts, power and wiring | 0 | 02 waits for the owner (the ESP32 was not at hand on 2026-11-12) |
-| Indonesian pages beyond the front door and `07-operations` (README, install, running) | the owner chose English + Indonesian | 0 | `docs/id/README.md` exists; every other Indonesian link goes to the English page |
+| ~~Indonesian pages~~ | the owner chose English + Indonesian | 0 | **done 2026-11-17**: every page has an Indonesian version |
 | ~~Request `STATUS` on a timer~~ | Known issue #20 | 0 | **done 2026-11-16** |
 | ~~A way to see the watchdog trip on real hardware~~ | Known issue #21 | 0 | **done 2026-11-16** as a guided check; still has to be run on a board |
 | ~~`tests/test_docs.py`~~ | | | **done 2026-11-16** |
