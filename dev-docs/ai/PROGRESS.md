@@ -52,6 +52,19 @@ See Known issues #1 about that LLM.
 
 ## 2. Changelog (newest first)
 
+### 2026-11-16 (later) — Handbook: chapters 02 and 06, Indonesian operations, `tests/test_docs.py`
+
+* **06 Dashboard and panel** (`docs/en/06-dashboard/`): the nine pages and the panel, written from the
+  source. **No screenshots**: they need the stack running with a browser, and the board's memory is shared.
+* **02 Hardware** (`docs/en/02-hardware/`): **partial on purpose.** The Jetson side as measured today, what the
+  owner reported about the body and what is missing, and the reference wiring from `robot_pins.h`. The real body's
+  parts, power and wiring still need the owner (`08-decisions/open-decisions.md` § E).
+* **Indonesian**: `docs/id/07-operations/` (overview, install, running), translated from the English pages.
+* **`tests/test_docs.py`** (84 tests, no new dependency): links and anchors resolve, every SVG is shown, every page is in
+  `mkdocs.yml`, every setting in the registry is in the configuration reference, every pin in `robot_pins.h` is in the wiring
+  page, fences balance, no secret-looking text. Checked that it fails on a broken link and a broken anchor.
+* Checked: `mkdocs build` strict passes, 26 Mermaid blocks parse. Committed locally; **not pushed**.
+
 ### 2026-11-16 — Handbook chapters 03, 05, 07 and 08
 
 Continued the illustrated handbook (see 2026-11-12). Written, in English, in `docs/en/`:
@@ -561,11 +574,11 @@ Add yours here. One row per feature; say *why* and *what it costs* (RAM first �
 | Camera tuning: white balance, exposure ceiling, IR | grain and pink cast | 0 | try `nvarguscamerasrc` properties |
 | `VISION_USE_GPU=1`, measured | maybe worth it with a smaller LLM | **+0.6-1.3 GiB** | unmeasured |
 | A second camera / a USB camera | CSI only today | ~40 MiB each | not started |
-| Handbook chapters 02 hardware and 06 dashboard and panel (03, 05, 07 and 08 are written, 2026-11-16) | phases 3 to 5 of the docs plan; 02 needs the real body's parts, power and wiring | 0 | 02 waits for the owner (the ESP32 was not at hand on 2026-11-12) |
-| Indonesian pages beyond the front door (operations first; hardware waits on chapter 02) | the owner chose English + Indonesian | 0 | `docs/id/README.md` exists; every other Indonesian link goes to the English page |
+| Handbook chapter 02 hardware, finished with the real body's parts, power and wiring, and screenshots for chapter 06 (all other chapters are written) | phases 3 to 5 of the docs plan; 02 needs the real body's parts, power and wiring | 0 | 02 waits for the owner (the ESP32 was not at hand on 2026-11-12) |
+| Indonesian pages beyond the front door and `07-operations` (README, install, running) | the owner chose English + Indonesian | 0 | `docs/id/README.md` exists; every other Indonesian link goes to the English page |
 | Request `STATUS` on a timer, or let the body volunteer `STAT`; debounce the stall flag | Known issue #20 | 0 | needs a decision |
 | A way to see the watchdog trip on real hardware (LED or pin) and a `--port` mode that reads it | Known issue #21 | 0 | needs the ESP32's wiring |
-| `tests/test_docs.py`: handbook links resolve, every figure is referenced, the pin table is generated from `robot_pins.h` | keeps the handbook from drifting | 0 | not started |
+| ~~`tests/test_docs.py`~~ | | | **done 2026-11-16** |
 | Settle the `+vy` sign, then fix whichever of `serial-protocol.md` / `verify_wheels.py` / the firmware is wrong | Known issue #18 | 0 | needs a decision |
 | ESP32 body firmware in the repo (or a pointer to where it lives), and a udev rule / `check_board.sh` that fits a USB-UART chip | Known issue #19 | 0 | needs the owner |
 | Rename STM32 to "body controller" in the code, scripts and constraints | the robot's controller is an ESP32 | 0 | **needs sign-off**: touches AGENTS.md constraints 6-7 |

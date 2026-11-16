@@ -37,7 +37,8 @@ claim is proven. You will see these badges next to hardware and behaviour:
 | Writing or checking the body's firmware | [The body: firmware](03-firmware/README.md), then [The ESP32 as the body](03-firmware/esp32-conformance.md) |
 | Making sure the robot stops when the brain dies | [The watchdog](03-firmware/watchdog.md) |
 | Checking which way the wheels turn | [Motion: from a sentence to four wheels](03-firmware/motion.md) |
-| Wiring the body | Chapter 02 is still planned and needs the owner. Today: [`planning/PROJECT_BRIEF.md`](../../planning/PROJECT_BRIEF.md) § Hardware and [`robot_pins.h`](../../firmware/stm32/include/robot_pins.h), a proposal never checked against a board |
+| Wiring the body | [Hardware: what is known](02-hardware/README.md) and the [reference wiring](02-hardware/reference-wiring.md), a proposal never checked against a board. The real ESP32 wiring needs the owner |
+| Using the dashboard, or the screen on the robot | [Dashboard and panel](06-dashboard/README.md) |
 | Plugging in a new screen, script or body | [Interfaces](05-interfaces/README.md) |
 | Changing a setting, and wondering why it did nothing | [Configuration](05-interfaces/configuration.md) |
 | Setting up a board, or starting the robot | [Installing](07-operations/install.md), then [Running it day to day](07-operations/running.md) |
@@ -52,11 +53,11 @@ claim is proven. You will see these badges next to hardware and behaviour:
 | Chapter | State | Until it is written, read |
 |---|---|---|
 | **01 Overview**: what it is, one turn, glossary | ✍️ written | |
-| **02 Hardware**: parts list, power, wiring, mecanum geometry, sensors, bring-up | 🗓 planned, needs details about the real body | [`robot_pins.h`](../../firmware/stm32/include/robot_pins.h) (a proposal, never checked against a board) |
+| **02 Hardware**: what is known and what is not, the Jetson side, the reference wiring | ◐ **partial**: the real body's parts, power and wiring need the owner (see [what is needed](08-decisions/open-decisions.md#e-what-the-handbook-still-needs-from-you)) | |
 | **03 Firmware**: the reference body, the watchdog, motion and mecanum signs, the simulator, what the ESP32 must do | ✍️ written. It documents the **reference** firmware: the ESP32's is not in the repo | |
 | **04 Brain**: processes, voice pipeline, models and memory, knowledge, vision and people, reliability | ✍️ written | |
 | **05 Interfaces**: serial protocol, reply JSON, WebSocket, configuration reference | ✍️ written | |
-| **06 Dashboard and panel**: every page, with screenshots | 🗓 planned | [`AGENTS.md`](../../AGENTS.md) § The dashboard, [`face.md`](../../dev-docs/modules/face.md) |
+| **06 Dashboard and panel**: every page, and the panel on the robot | ✍️ written from the source. **No screenshots yet** | |
 | **07 Operations**: install, run modes, systemd, a symptom index | ✍️ written | |
 | **08 Decisions**: the hard constraints, rejected alternatives, what is waiting for the owner | ✍️ written | |
 

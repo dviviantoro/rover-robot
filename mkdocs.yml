@@ -91,6 +91,9 @@ nav:
           - en/01-overview/what-it-is.md
           - en/01-overview/one-turn.md
           - en/01-overview/glossary.md
+      - 2 Hardware:
+          - en/02-hardware/README.md
+          - en/02-hardware/reference-wiring.md
       - 3 Firmware:
           - en/03-firmware/README.md
           - en/03-firmware/watchdog.md
@@ -110,6 +113,10 @@ nav:
           - en/05-interfaces/reply-json.md
           - en/05-interfaces/websocket.md
           - en/05-interfaces/configuration.md
+      - 6 Dashboard and panel:
+          - en/06-dashboard/README.md
+          - en/06-dashboard/pages.md
+          - en/06-dashboard/panel.md
       - 7 Operations:
           - en/07-operations/README.md
           - en/07-operations/install.md
@@ -123,3 +130,7 @@ nav:
           - en/08-decisions/open-decisions.md
   - Bahasa Indonesia:
       - id/README.md
+      - 7 Operasional:
+          - id/07-operations/README.md
+          - id/07-operations/install.md
+          - id/07-operations/running.md

@@ -50,7 +50,9 @@ menyebutkan sejauh mana setiap klaim sudah terbukti:
 | Memasang kabel tubuh robot | Bab perangkat keras masih direncanakan dan butuh pemilik proyek. Untuk sekarang: [`PROJECT_BRIEF.md`](../../planning/PROJECT_BRIEF.md) bagian Hardware dan [`robot_pins.h`](../../firmware/stm32/include/robot_pins.h), usulan yang belum pernah diperiksa pada papan sungguhan |
 | Menyambungkan layar, skrip, atau tubuh baru | [Antarmuka](../en/05-interfaces/README.md) *(Inggris)* |
 | Mengubah pengaturan, tetapi tidak terjadi apa-apa | [Konfigurasi](../en/05-interfaces/configuration.md) *(Inggris)* |
-| Memasang papan atau menyalakan robot | [Pemasangan](../en/07-operations/install.md), lalu [Menjalankan sehari-hari](../en/07-operations/running.md) *(Inggris)* |
+| Memasang papan atau menyalakan robot | [Pemasangan](07-operations/install.md), lalu [Menjalankan sehari-hari](07-operations/running.md) |
+| Memakai dashboard atau layar di robot | [Dashboard dan panel](../en/06-dashboard/README.md) *(Inggris)* |
+| Mengetahui apa yang diketahui tentang perangkat keras | [Perangkat keras](../en/02-hardware/README.md) *(Inggris)* |
 | Robot "tuli", bisu, lambat, atau macet | [Indeks gejala](../en/07-operations/troubleshooting-index.md) *(Inggris)* |
 | Bertanya "mengapa bukan ROS 2?" atau "mengapa model itu?" | [Keputusan](../en/08-decisions/README.md) *(Inggris)* |
 | Mencari yang menunggu keputusan pemilik | [Menunggu pemilik proyek](../en/08-decisions/open-decisions.md) *(Inggris)* |
@@ -62,15 +64,15 @@ menyebutkan sejauh mana setiap klaim sudah terbukti:
 | Bab | Keadaan |
 |---|---|
 | **01 Gambaran umum**: apa itu robot ini, satu giliran, daftar istilah | ✍️ ditulis (Inggris) |
-| **02 Perangkat keras**: daftar komponen, daya, kabel, geometri roda mecanum, sensor, uji awal | 🗓 direncanakan, butuh detail tubuh robot yang sebenarnya |
+| **02 Perangkat keras**: apa yang diketahui dan belum, sisi Jetson, kabel acuan | ◐ sebagian (Inggris): komponen, daya, dan kabel tubuh yang sebenarnya butuh pemilik proyek |
 | **03 Firmware**: tubuh acuan, watchdog, gerak dan tanda roda mecanum, simulator, apa yang harus dilakukan ESP32 | ✍️ ditulis (Inggris) |
 | **04 Otak**: proses, alur suara, model dan memori, pengetahuan, penglihatan dan orang, keandalan | ✍️ ditulis (Inggris) |
 | **05 Antarmuka**: protokol serial, JSON balasan, WebSocket, referensi konfigurasi | ✍️ ditulis (Inggris) |
-| **06 Dashboard dan panel**: setiap halaman, dengan tangkapan layar | 🗓 direncanakan |
-| **07 Operasional**: pemasangan, mode menjalankan, systemd, indeks gejala | ✍️ ditulis (Inggris) |
+| **06 Dashboard dan panel**: setiap halaman, dan panel di robot | ✍️ ditulis dari kode sumber (Inggris), belum ada tangkapan layar |
+| **07 Operasional**: pemasangan, mode menjalankan, systemd, indeks gejala | ✍️ ditulis. **Sudah diterjemahkan**: [ikhtisar](07-operations/README.md), [pemasangan](07-operations/install.md), [menjalankan](07-operations/running.md). Sisanya Inggris |
 | **08 Keputusan**: batasan keras, alternatif yang ditolak, yang menunggu pemilik proyek | ✍️ ditulis (Inggris) |
 
-Bab perangkat keras, operasional, dan halaman depan ini akan diterjemahkan lebih dulu.
+Halaman depan dan tiga halaman operasional sudah diterjemahkan; sisanya menyusul bertahap.
 
 ## Fakta singkat (per 2026-11-12)
 
