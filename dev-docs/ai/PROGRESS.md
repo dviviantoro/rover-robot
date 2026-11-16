@@ -71,9 +71,10 @@ Continued the illustrated handbook (see 2026-11-12). Written, in English, in `do
   front doors (`docs/en/README.md`, `docs/id/README.md`) list the new chapters.
 * **A site build for the handbook.** `mkdocs.yml`, `requirements-docs.txt`, `scripts/docs/mkdocs_hooks.py` (rewrites
   links that leave `docs/` into GitHub URLs, so the Markdown stays unchanged), `.github/workflows/docs.yml` (GitHub Pages) and
-  `.readthedocs.yaml`. `mkdocs build` is strict and passes: 31 pages, 24 Mermaid blocks, 75 links rewritten, no warnings. **Nothing
-  was committed or pushed**, and Pages was not enabled. Three files the handbook links to are untracked in git
-  (`dev-docs/ai/PROGRESS.md`, `dev-docs/modules/people.md`, `vision.md`), so those links 404 on GitHub until they are committed.
+  `.readthedocs.yaml`. `mkdocs build` is strict and passes: 31 pages, 24 Mermaid blocks, 75 links rewritten, no warnings. Committed as `84c82d8` and pushed to `origin master` at the owner's request, together with the three files the handbook links to that
+  were untracked (`dev-docs/ai/PROGRESS.md`, `dev-docs/modules/people.md`, `vision.md`). On GitHub the CI steps `pip install` and
+  `mkdocs build --strict` **pass**; the deploy fails at `configure-pages` only because **GitHub Pages is not enabled yet**: Settings -> Pages ->
+  Source: GitHub Actions, then re-run the `Handbook` workflow. The repository is **public**, so the handbook and those three dev docs are public.
 
 **Found while writing, not fixed** (all recorded under Known issues): #18 widened (the hand console
 and one tool alias use the same opposite convention), **#20** (nothing ever sends `STATUS`) and
@@ -89,8 +90,8 @@ journal); `./run.sh model` and `headless --check` read for the configuration in 
 dashboard's pins). All 24 Mermaid blocks parse with Mermaid 10.9.1's own parser (a deliberately
 broken block is rejected); 220 relative links and anchors in `docs/` resolve and every SVG is
 referenced; the new SVG was rendered with `rsvg-convert` and looked at. The mecanum sign pattern was
-derived from the roller geometry, not copied from the doc. **No code or config changed, the Python
-tests were not re-run, and nothing was committed.** `tools/stm32_sim/stm32_sim` was not rebuilt.
+derived from the roller geometry, not copied from the doc. **No code or config changed and the Python
+tests were not re-run.** `tools/stm32_sim/stm32_sim` was not rebuilt.
 
 ### 2026-11-12 — The illustrated handbook (`docs/`), phases 0 to 2
 
@@ -528,7 +529,7 @@ changed — the reason is given so the next person does not have to rediscover i
 | 2026-10-29 | Chat, Voice and Vision are **one Talk page** | **owner** | the old addresses redirect |
 | 2026-10-29 | The robot **keeps conversations per recognised face**, on the robot, and speaks first to ask a name | **owner** (asked for) | a new kind of personal data: see `people.md`. Off with `CORE_PEOPLE=0`; each person removable. Recall is by prompt (last turns + notes), not by embedding search, so it costs no memory |
 | 2026-11-12 | Documentation: a layered handbook in `docs/`, English master plus Indonesian, for team and students; `dev-docs/` and `planning/` untouched | **owner** | Diagrams are hand-written SVG plus inline Mermaid; no docs-site generator (a new tool needs approval under working rule 1) |
-| 2026-11-16 | The handbook is published as a **MkDocs + Material** site, on **GitHub Pages or Read the Docs** | **owner** (asked for it) | Build-time tooling only, in `.cache/docs-venv`, never on the robot. A docs generator is a new tool under working rule 1, so this is the approval. Recorded in `TECH_STACK.md`. Nothing has been pushed yet |
+| 2026-11-16 | The handbook is published as a **MkDocs + Material** site, on **GitHub Pages or Read the Docs** | **owner** (asked for it) | Build-time tooling only, in `.cache/docs-venv`, never on the robot. A docs generator is a new tool under working rule 1, so this is the approval. Recorded in `TECH_STACK.md`. Pushed in `84c82d8`; Pages still has to be enabled in the repository settings |
 | 2026-11-12 | The body controller is an **ESP32** | **owner** (reported, unverified) | the repo still says STM32 in 63 files and in constraints 6-7; renaming is a separate change that needs sign-off. See Known issues #19 |
 | 2026-10-29 | A **typed** line is filed under whoever the camera sees | proposed | the person at the keyboard may not be the one in front of the camera; the page names who it is filed under. Say if you would rather typed lines were never filed |
 
