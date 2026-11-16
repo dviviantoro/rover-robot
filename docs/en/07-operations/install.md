@@ -78,9 +78,8 @@ cp .env.example .env
 
 Then set `ROBOT_UI_PASSWORD` (the dashboard **will not start** without it) and
 `ROBOT_UI_STORAGE_SECRET`, generated with
-`python3 -c "import secrets; print(secrets.token_urlsafe(32))"`. Also add `CORE_WS_TOKEN` to `.env`:
-it is read by `robot-core`, `robot-ui` and `robot-face`, and **`.env.example` does not list it**
-❓. `.env` is gitignored. Nothing secret goes in a tracked file.
+`python3 -c "import secrets; print(secrets.token_urlsafe(32))"`. Also set `CORE_WS_TOKEN` in `.env`
+(`.env.example` lists it since 2026-11-16): it is read by `robot-core`, `robot-ui` and `robot-face`. `.env` is gitignored. Nothing secret goes in a tracked file.
 
 ## 5. Look before you start
 

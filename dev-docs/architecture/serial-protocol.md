@@ -124,6 +124,10 @@ when it expires. Motion is never open-ended waiting for a `STOP` that might neve
 | `DONE <command>` | A timed action finished (e.g. drive duration elapsed, gesture complete) |
 | `STAT batt=<V> motors=<ok\|stall> temp=<C> up=<ms>` | Status |
 
+**robot-core sends `STATUS` every 2 s** (since 2026-11-16) and believes `motors=stall` only after two consecutive
+samples, because a body's stall test may fire during the first ticks of a start. A body that answers
+`ERR STATUS unknown` is not asked again.
+
 **Every command gets a response.** Without it, the LLM will cheerfully announce "driving
 forward" while a wheel is stalled against furniture, and never find out.
 

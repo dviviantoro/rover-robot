@@ -33,6 +33,10 @@ log = logging.getLogger("robot-serial")
 HEARTBEAT_PERIOD_S = 0.200      # protocol doc: PING every 200 ms
 WATCHDOG_TIMEOUT_S = 0.500      # what the STM32 enforces if we go quiet
 RESPONSE_TIMEOUT_S = 1.0
+STATUS_PERIOD_S = 2.0           # ask the body for STAT this often (Known issue #20)
+# A stall is believed after this many consecutive STAT samples say so. The body's own test has no
+# waiting time, so the first control ticks of any start (encoder still near zero) look like one.
+STALL_CONFIRM_SAMPLES = 2
 RECONNECT_DELAY_S = 2.0
 PROBE_TIMEOUT_S = 0.5           # how long ping_ports waits for a port to answer
 
@@ -116,6 +120,8 @@ class SerialLink:
         self._tasks: list[asyncio.Task] = []
         self.connected = False
         self.last_status: Status | None = None
+        self._status_supported = True
+        self._stall_streak = 0
         self.last_rx: float = 0.0
         self.last_error: str | None = None
 
@@ -134,6 +140,7 @@ class SerialLink:
         loop = asyncio.get_running_loop()
         loop.add_reader(self._ser.fileno(), self._on_readable)
         self.connected = True
+        self._status_supported = True       # a different body may answer it
         self.last_rx = time.monotonic()
         self.last_error = None
         log.info("serial link up on %s", self.port)
@@ -156,6 +163,7 @@ class SerialLink:
             with contextlib.suppress(Exception):
                 self._ser.close()
         self._ser = None
+        self._stall_streak = 0
         if self.connected:
             self.connected = False
             self._emit({"type": "serial_down", "port": self.port})
@@ -174,7 +182,8 @@ class SerialLink:
                 if not await self.connect():
                     await asyncio.sleep(RECONNECT_DELAY_S)
                     continue
-            self._tasks = [asyncio.create_task(self._heartbeat())]
+            self._tasks = [asyncio.create_task(self._heartbeat()),
+                           asyncio.create_task(self._status_poll())]
             try:
                 await asyncio.gather(*self._tasks)
             except (asyncio.CancelledError, GeneratorExit):
@@ -194,6 +203,21 @@ class SerialLink:
             except (serial.SerialException, OSError) as exc:
                 raise ConnectionError(f"heartbeat write failed: {exc}") from exc
             await asyncio.sleep(HEARTBEAT_PERIOD_S)
+
+    async def _status_poll(self) -> None:
+        """Ask for `STATUS` every STATUS_PERIOD_S, so battery, temperature and the stall flag arrive.
+
+        Until 2026-11-16 nothing sent it, and the receiving side (the hardware note "a wheel is
+        stalled") was never reached. It stops by itself for a body that answers `ERR STATUS unknown`.
+        """
+        while self.connected and self._status_supported:
+            await asyncio.sleep(STATUS_PERIOD_S)
+            if not self._status_supported:
+                return
+            try:
+                self._write_line("STATUS")
+            except (serial.SerialException, OSError) as exc:
+                raise ConnectionError(f"status write failed: {exc}") from exc
 
     # -- receiving ---------------------------------------------------------
     def _on_readable(self) -> None:
@@ -233,6 +257,11 @@ class SerialLink:
             verb = parts[1].upper() if len(parts) > 1 else ""
             reason = " ".join(parts[2:]) if kind == "ERR" else None
             resp = Response(ok=(kind == "OK"), verb=verb, reason=reason, raw=line)
+            if kind == "ERR" and verb == "STATUS":
+                # A body that does not know STATUS: stop asking, once, quietly.
+                self._status_supported = False
+                log.info("body does not answer STATUS (%s); not polling it", reason)
+                return
             if kind == "ERR" and verb.startswith("{"):
                 # The body answering a reply line it does not parse yet. That is a
                 # firmware that predates `send_reply`, not a refusal -- and reporting
@@ -272,6 +301,8 @@ class SerialLink:
                 except ValueError:
                     log.debug("unparseable STAT field: %r", field_)
             self.last_status = status
+            self._stall_streak = self._stall_streak + 1 if status.stalled else 0
+            confirmed = self._stall_streak >= STALL_CONFIRM_SAMPLES
             if status.stalled:
                 # The doc is explicit: a stall must reach the UI and, when it matters
                 # conversationally, the LLM -- so the robot can say "I'm stuck"
@@ -279,7 +310,7 @@ class SerialLink:
                 log.warning("STM32 reports motors=stall")
             self._emit({"type": "serial_status", "battery_v": status.battery_v,
                         "motors": status.motors, "temp_c": status.temp_c,
-                        "uptime_ms": status.uptime_ms})
+                        "uptime_ms": status.uptime_ms, "stall_confirmed": confirmed})
         else:
             log.debug("unrecognised line from STM32: %r", line)
 

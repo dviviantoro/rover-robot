@@ -70,7 +70,7 @@ because it had been built with `PROTOCOL_MAX_LINE 96`.
 
 ## Other Python tests that touch the body
 
-The wider suite (`python -m pytest tests/ -q`, 1245 tests, run on 2026-11-16) includes
+The wider suite (`python -m pytest tests/ -q`, 1255 tests, run on 2026-11-16) includes
 `tests/test_serial_reply.py` (reply JSON goes down the wire; `ping_ports` reaches every port),
 `tests/test_tools.py` (tool calls and their clamping) and `tests/test_hardware.py` (picking the
 serial port from the dashboard). `scripts/hardening/failure_drills.py` kills each service for real
@@ -82,5 +82,6 @@ and checks that the body stops when `robot-core` dies.
 
 1. **`protocol_test.py` sends `DRIVE`, `WHEEL`, `HAND` and `FACE`.** Against a real port it moves
    things. Run it only with the motors unpowered or the robot on blocks.
-2. **`watchdog_test.py --port` cannot see real wheels.** It waits for `run/stm32_state.json`,
-   which only the simulator writes. See [the watchdog page](watchdog.md#what-has-not-been-proven).
+2. **`watchdog_test.py --port` is guided, not automatic.** On a real board it cannot see the wheels, so it
+   kills the Jetson-side process and asks you what a scope, an LED or your eyes show. See
+   [the watchdog page](watchdog.md#proving-it-on-a-real-board).

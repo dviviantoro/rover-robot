@@ -166,7 +166,7 @@ got slower. Set either to 0 only deliberately.
 |---|---|---|
 | `ROBOT_UI_USER`, `ROBOT_UI_PASSWORD` | `.env` | the dashboard login. `robot-ui` **refuses to start** without a password |
 | `ROBOT_UI_STORAGE_SECRET` | `.env` | the session cookie's signature. If it is missing a temporary one is generated and sessions do not survive a restart |
-| `CORE_WS_TOKEN` | `.env` | the orchestrator's WebSocket, as the second lock. Not in `.env.example` ❓ |
+| `CORE_WS_TOKEN` | `.env` | the orchestrator's WebSocket, as the second lock. Listed (empty) in `.env.example` since 2026-11-16 |
 
 Nothing secret belongs in a tracked file, including these pages. `cp .env.example .env` and fill
 it in.

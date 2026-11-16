@@ -63,6 +63,42 @@ def alive(pid: int) -> bool:
     return True
 
 
+def manual_check(port: str, driver: "subprocess.Popen") -> int:
+    """The watchdog test on a REAL board, where the script cannot see the wheels.
+
+    The simulator writes run/stm32_state.json; a real board does not, so this used to fail at
+    "wheels never started turning" (Known issue #21). Here a person is the observer: a scope or
+    an LED on the PWM or driver-standby pin, or the wheels off the ground. The script still does
+    the part that matters, which is killing the Jetson side with SIGKILL, no cleanup, no STOP.
+    """
+    def ask(question: str) -> bool:
+        return input(f"    {question} [y/N] ").strip().lower() in ("y", "yes")
+
+    print("\n  MANUAL MODE: nothing here can see the wheels, so you are the sensor.")
+    print("  Watch ONE of: a scope or LED on a motor PWM / driver-standby pin, or the wheels")
+    print("  (robot ON BLOCKS, or the motors unpowered and only the pin watched).")
+    time.sleep(1.0)
+    if not ask("Is the observable ACTIVE now (pin toggling / wheels turning)?"):
+        print("    FAIL: nothing to observe, so the test cannot prove anything.")
+        driver.kill()
+        return 1
+    print("\n[4] SIGKILL -> the Jetson-side process (no cleanup, no STOP command)")
+    kill_at = time.monotonic()
+    os.kill(driver.pid, signal.SIGKILL)
+    driver.wait(timeout=5)
+    stopped = ask("It should stop BY ITSELF within about half a second. Did it?")
+    print(f"    (you answered {1000 * (time.monotonic() - kill_at):.0f} ms after the kill; "
+          "that includes your reaction time, so it is an upper bound, not a measurement)")
+    time.sleep(1.0)
+    held = ask("One second later: is it STILL stopped (no auto-resume)?")
+    print()
+    if stopped and held:
+        print("PASS (observed by a person): the body stopped the motors by itself.")
+        return 0
+    print("FAIL: do not trust this body with motors until it stops on its own.")
+    return 1
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", help="real STM32 port, e.g. /dev/ttyACM0")
@@ -98,8 +134,10 @@ def main() -> int:
         else:
             port = args.port
             print(f"[1] using real STM32 on {port}")
-            print("    NOTE: --port mode needs the firmware to write "
-                  f"{state_path} or you must watch the wheels yourself")
+            print("    manual mode: a person observes the wheels or a pin (no state file on real hardware)")
+            if not sys.stdin.isatty():
+                print("    --port needs an interactive terminal: it asks what you see")
+                return 2
 
         # ---- 2. the Jetson side, as its own killable process -------------
         driver = subprocess.Popen(
@@ -109,6 +147,9 @@ def main() -> int:
         )
         print(f"[2] Jetson-side process started, pid {driver.pid} "
               f"(heartbeat every 200 ms)")
+
+        if not args.sim:
+            return manual_check(port, driver)
 
         # ---- 3. confirm the wheels are actually turning ------------------
         moving, elapsed = wait_for(

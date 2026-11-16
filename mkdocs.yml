@@ -130,11 +130,19 @@ nav:
           - en/08-decisions/open-decisions.md
   - Bahasa Indonesia:
       - id/README.md
+      - 1 Gambaran umum:
+          - id/01-overview/what-it-is.md
       - 3 Firmware:
           - id/03-firmware/README.md
           - id/03-firmware/watchdog.md
           - id/03-firmware/motion.md
+      - 5 Antarmuka:
+          - id/05-interfaces/README.md
+          - id/05-interfaces/serial-protocol.md
       - 7 Operasional:
           - id/07-operations/README.md
           - id/07-operations/install.md
           - id/07-operations/running.md
+      - 8 Keputusan:
+          - id/08-decisions/README.md
+          - id/08-decisions/open-decisions.md

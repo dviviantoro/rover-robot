@@ -89,10 +89,27 @@ allows 400 ms of slack either side of 500 ms for a loaded Linux machine.
 | Not proven | Why it matters |
 |---|---|
 | The watchdog **on any real board**, and on the **ESP32** in particular | The firmware README says nothing else should be trusted until this passes on real silicon |
-| **A way to observe it on real hardware** | `watchdog_test.py --port` cannot see wheels: it waits for a file, `run/stm32_state.json`, that only the simulator writes. On a real port it stops with `FAIL: wheels never started turning` after 10 s. The script says so in a note, but the README's bring-up step 2 reads as though it were an automated check. A real check needs something visible: a scope or LED on the PWM or standby pin, or wheels off the ground and your eyes. Recorded as Known issue #21 |
+| **That it has been run on real hardware at all** | The guided procedure below exists (since 2026-11-16) and has **never been run** ❓ |
 | That the ESP32 main loop **never blocks** | If a Wi-Fi or Bluetooth stack, a flash write or a long display refresh delays the loop by more than the rest of the 500 ms, the stop is late. The check must be made on the ESP32 itself ❓ |
 | That nothing else **moves the motors after a stop** | On a reset or brown-out the pins are in whatever state the chip leaves them in. See the boot-state row in [The ESP32 as the body](esp32-conformance.md) ❓ |
 | The effect of **USB-UART buffering** | A USB-UART chip may deliver a few late bytes after the cable is pulled or the process dies. It cannot make the stop later than 500 ms, but it affects how the test is built ❓ |
+
+## Proving it on a real board
+
+`python scripts/serial/watchdog_test.py --port <port>` is a **guided** check (Known issue #21, settled
+2026-11-16). A real board does not write the state file the simulator does, so the script cannot see
+the wheels. It does the part that matters, and you are the sensor:
+
+1. Watch **one observable**: a scope or LED on a motor **PWM** or **driver-standby** pin, or the wheels
+   with the robot **on blocks**. With the motors unpowered, watching the pin is enough.
+2. The script starts a Jetson-side process that sends the heartbeat and a long `DRIVE`, and asks
+   whether the observable is active.
+3. It `SIGKILL`s that process: no cleanup, no `STOP`.
+4. You answer whether it **stopped by itself within about half a second**, and one second later whether
+   it is **still stopped**. The time between the kill and your answer includes your reaction, so it is an
+   upper bound and not a measurement; a scope gives the real figure.
+
+It needs an interactive terminal and exits with 2 otherwise. A wrong answer, or no observable, is a FAIL.
 
 ## If you change it
 

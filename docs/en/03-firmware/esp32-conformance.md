@@ -59,7 +59,7 @@ State is ❓ for every row, because no ESP32 firmware has been seen. Tick them a
 | 5 | Answer **every other command with exactly one line**: `OK <verb>`, `ERR <verb> <reason>`, or `STAT …` for `STATUS`. The reasons in use are `unknown`, `badargs`, `range`, `toolong`, `empty`, `watchdog` | `protocol.c` | `protocol_test.py --port` |
 | 6 | Accept verbs in any case, and refuse extra or missing arguments with `ERR <verb> badargs` | `protocol_parse` | by hand |
 | 7 | Validate `DRIVE vx vy omega ms`: ±1.0, ±1.0, ±3.0, 1 to 10 000 ms, finite numbers only. Otherwise `ERR DRIVE range` or `badargs` | `protocol.h` limits | `protocol_test.py --port` |
-| 8 | **Stop by itself 500 ms after the last line** and answer `ERR <verb> watchdog` once. **Do not resume** | [The watchdog](watchdog.md) | needs an observable on real hardware: Known issue #21 |
+| 8 | **Stop by itself 500 ms after the last line** and answer `ERR <verb> watchdog` once. **Do not resume** | [The watchdog](watchdog.md) | `watchdog_test.py --port`, guided: [Proving it on a real board](watchdog.md#proving-it-on-a-real-board) |
 | 9 | End a timed move by itself and send `DONE DRIVE` (or `DONE WHEEL`) | `robot_tick` | `protocol_test.py --port` |
 | 10 | Answer `STOP` with `OK STOP` and stop at once | `robot.c` | by hand, wheels off the ground |
 | 11 | Accept **nine face names**: `happy neutral sad thinking listening speaking` and the three phase faces `blink talking random`. Unknown name: `ERR FACE unknown` | `tools.py` `FACES`, `core/face.py` | `FACE blink` by hand |
@@ -98,9 +98,9 @@ ESP32 may be an OLED or a TFT; whatever it is, it must understand those nine nam
 ## `STATUS` and the stall flag
 
 See [Interfaces: the serial protocol](../05-interfaces/serial-protocol.md#status-and-the-stall-flag).
-`robot-core` does not ask for `STATUS` in normal running, so battery voltage and the stall flag
-never reach the dashboard or the model. A body that implements `STATUS` correctly is still
-invisible until the Jetson asks. Recorded as Known issue #20.
+Since 2026-11-16 `robot-core` asks for `STATUS` every 2 s, so a body that answers it (row 13) gets its
+battery, temperature and stall flag to the dashboard. A body that answers `ERR STATUS unknown` is left
+alone after the first refusal. A stall is believed only after **two** consecutive `STAT` samples say so.
 
 ## The identity problem, in one paragraph
 

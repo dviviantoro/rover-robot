@@ -5,7 +5,7 @@
 the one that answers *"where are we right now?"* — keep it current in the same change as
 the work (AGENTS.md working rule 5).
 
-> **Last updated: 2026-11-16** · Python tests **1245 passing** (`python -m pytest tests/ -q`, run 2026-11-16)
+> **Last updated: 2026-11-16** · Python tests **1255 passing** (`python -m pytest tests/ -q`, run 2026-11-16)
 > · firmware core **634 checks, 0 failures** (`./firmware/stm32/run_native_tests.sh`; re-run 2026-11-16).
 
 ## How to keep this file honest
@@ -43,14 +43,23 @@ Prefer *measured* over *believed*: say how a claim was checked ("verified with
 | Production (systemd) path | ⚠️ | units **never installed on this box**; four faults found and fixed by reading them against the dev path (2026-10-22) — still needs a real boot, see Known issues |
 | Wake word | ✅ (by transcript) | `CORE_LISTEN_MODE=wake_word`; no keyword-spotter model by design |
 
-Currently configured on this robot (read from `config/` and `run/settings.json`, not
-assumed): LLM **Qwen3-0.6B Q4_K_M** · ASR **whisper large-v3-turbo q5_0** (GPU) · TTS
-**Supertonic F1** (GPU, 4 steps) · listen mode **no_interrupt**, tail 100 ms · filler **on**.
-See Known issues #1 about that LLM.
+Currently configured on this robot (`./run.sh headless --check`, 2026-11-16): LLM **LFM2.5-2.6B-Q5_K_M** · ASR
+**whisper large-v3-turbo q8_0** (GPU) · TTS **Supertonic M1** (GPU, 4 steps) · listen mode **no_interrupt**, tail 100 ms
+(a dashboard pin; `config/core.env` says 700) · filler **on**. Known issue #1 is about an earlier model.
 
 ---
 
 ## 2. Changelog (newest first)
+
+### 2026-11-16 (night) — Known issues #20 and #21 settled; stale records corrected
+
+* **Stale records fixed:** the "Currently configured" line and Known issues #1/#12 (the board runs LFM2.5-2.6B, q8_0, M1), `TECH_STACK.md` § Think, 628 to 634 checks in three docs, the root disk at about 96%, the `robot-core.service` comment (six units), and `.env.example` now lists `CORE_WS_TOKEN`.
+* **#20:** `robot-core` polls `STATUS` every 2 s and confirms a stall over two samples. `serial_link.py`, `app.py`, `talk.js`;
+  `tests/test_status_poll.py` (4 tests). The simulator now shows STAT arriving about every 2 s; `protocol_test.py --sim` 20/20
+  and `watchdog_test.py --sim` PASS still.
+* **#21:** `scripts/serial/watchdog_test.py --port` is a guided procedure instead of failing at step 3.
+* Handbook: the firmware, interfaces and decisions pages and the Indonesian watchdog and motion pages follow. `serial-protocol.md`
+  (the contract) notes the polling.
 
 ### 2026-11-16 (evening) — Known issue #18 settled
 
@@ -429,7 +438,7 @@ Per-milestone history lives in `START_HERE.md` (table), `ROADMAP.md` (M0–M9 de
 Ordered by what I would look at first. "Left" means found in the audit and consciously not
 changed — the reason is given so the next person does not have to rediscover it.
 
-1. **The configured LLM is the one the bake-off rejected.** `config/llm.env` and
+1. **~~The configured LLM is the one the bake-off rejected.~~ Superseded: the board now runs LFM2.5-2.6B-Q5_K_M (checked 2026-11-16); whether it was bake-off tested is not recorded.** Original text: `config/llm.env` and
    `run/settings.json` both pin `Qwen3-0.6B-Q4_K_M`. `memory-budget.md` § LLM bake-off:
    11/19 answers and *37 truncated replies* — a hybrid-reasoning model under the JSON
    grammar runs out of budget mid-object. Fine for developing on a box with an editor
@@ -470,7 +479,7 @@ changed — the reason is given so the next person does not have to rediscover i
     letterboxing as the sensor) and the live camera only on an empty room. Enrol yourself on the
     Vision page and check the similarity shown beside your name; if it hovers near 0.363,
     enrol again in the room's real light.
-12. **The configured LLM uses the scene line poorly** (Known issue #1 again): with Qwen3-0.6B a
+12. **~~The configured LLM uses the scene line poorly~~ (about Qwen3-0.6B, no longer configured; re-test with LFM2.5)** (Known issue #1 again): with Qwen3-0.6B a
     known person was named 3/3 on a plain persona and missed on the long Indonesian one. A
     3B model is the real fix; the sentence itself was tested and should not be reworded blind.
 13. *Left —* the camera is tuned by Argus's defaults: dim, grainy, pink. A lamp helps more than
@@ -508,20 +517,13 @@ changed — the reason is given so the next person does not have to rediscover i
     * The lidar and the SPI camera have no code or protocol here, and `PROJECT_BRIEF.md` lists
       navigation as a non-goal.
 
-20. **`STATUS` is never requested, so battery, temperature and the stall flag never arrive.**
-    Found 2026-11-16. `serial_link.py` parses `STAT`, and `app.py` turns `motors=stall` into the
-    hardware note "a wheel is stalled -- you are not actually moving", but nothing sends `STATUS` in
-    normal running: the only caller of `request_status()` in `src/`, `scripts/` and `tests/` is
-    `scripts/serial/protocol_test.py`. Whatever the body does, `STAT` never reaches the dashboard
-    or the model. Not fixed: polling, a body-volunteered `STAT`, or piggybacking on `OK PING` is a
-    protocol decision. Whichever is chosen, the reference firmware's stall test (`|measured| < 0.2 rad/s`
-    while `|target| > 1.0 rad/s`, no waiting time) needs a debounce first or every start reports a stall.
-21. **`watchdog_test.py --port` cannot observe a real board.** Found 2026-11-16. Pass or fail is read
-    from `run/stm32_state.json`, which only `tools/stm32_sim` writes; against a real port it prints a
-    note and then fails at step 3 (`wheels never started turning`, after 10 s). Bring-up step 2 in
-    `firmware/stm32/README.md` reads as if it were an automated check on silicon. A real check needs another
-    observable: a scope or LED on the PWM or driver-standby pin, or the wheels off the ground. Not fixed: the
-    choice depends on the ESP32's wiring. Related to #3.
+20. **~~`STATUS` is never requested.~~ Settled 2026-11-16 (owner's choice):** `SerialLink` polls `STATUS` every 2 s
+    (`STATUS_PERIOD_S`) and a stall counts only after two consecutive `STAT` samples (`STALL_CONFIRM_SAMPLES`); the
+    `serial_status` event carries `stall_confirmed`, which is what `app.py` and the Conversation page use. A body that answers
+    `ERR STATUS unknown` is not asked again. `tests/test_status_poll.py`. Verified against the simulator (STAT every ~2 s).
+21. **~~`watchdog_test.py --port` cannot observe a real board.~~ Settled 2026-11-16 (owner's choice):** `--port` is now a
+    guided check: it kills the Jetson-side process and asks a person what a scope, LED or the wheels show. Exercised against
+    the simulator with scripted answers; **never run on a real board**. Related to #3.
 
 ## 4. Decisions
 
@@ -572,8 +574,8 @@ Add yours here. One row per feature; say *why* and *what it costs* (RAM first �
 | A second camera / a USB camera | CSI only today | ~40 MiB each | not started |
 | Handbook chapter 02 hardware, finished with the real body's parts, power and wiring, and screenshots for chapter 06 (all other chapters are written) | phases 3 to 5 of the docs plan; 02 needs the real body's parts, power and wiring | 0 | 02 waits for the owner (the ESP32 was not at hand on 2026-11-12) |
 | Indonesian pages beyond the front door and `07-operations` (README, install, running) | the owner chose English + Indonesian | 0 | `docs/id/README.md` exists; every other Indonesian link goes to the English page |
-| Request `STATUS` on a timer, or let the body volunteer `STAT`; debounce the stall flag | Known issue #20 | 0 | needs a decision |
-| A way to see the watchdog trip on real hardware (LED or pin) and a `--port` mode that reads it | Known issue #21 | 0 | needs the ESP32's wiring |
+| ~~Request `STATUS` on a timer~~ | Known issue #20 | 0 | **done 2026-11-16** |
+| ~~A way to see the watchdog trip on real hardware~~ | Known issue #21 | 0 | **done 2026-11-16** as a guided check; still has to be run on a board |
 | ~~`tests/test_docs.py`~~ | | | **done 2026-11-16** |
 | ~~Settle the `+vy` sign~~ | Known issue #18 | 0 | **done 2026-11-16** |
 | ESP32 body firmware in the repo (or a pointer to where it lives), and a udev rule / `check_board.sh` that fits a USB-UART chip | Known issue #19 | 0 | needs the owner |

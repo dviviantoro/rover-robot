@@ -69,9 +69,8 @@ cp .env.example .env
 ```
 
 Lalu isi `ROBOT_UI_PASSWORD` (dashboard **tidak mau menyala** tanpanya) dan `ROBOT_UI_STORAGE_SECRET`,
-yang dibuat dengan `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`. Tambahkan juga
-`CORE_WS_TOKEN` ke `.env`: dibaca oleh `robot-core`, `robot-ui`, dan `robot-face`, dan **`.env.example`
-tidak mencantumkannya** ❓. `.env` diabaikan git. Tidak ada rahasia di berkas yang dilacak.
+yang dibuat dengan `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`. Isi juga
+`CORE_WS_TOKEN` di `.env` (`.env.example` mencantumkannya sejak 2026-11-16): dibaca oleh `robot-core`, `robot-ui`, dan `robot-face`. `.env` diabaikan git. Tidak ada rahasia di berkas yang dilacak.
 
 ## 5. Lihat dulu sebelum menyalakan
 

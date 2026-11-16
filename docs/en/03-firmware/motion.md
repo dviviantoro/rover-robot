@@ -178,7 +178,7 @@ Two details worth knowing before reading the code:
 
 A wheel counts as **stalled** when its target is above 1.0 rad/s and its measured speed is
 below 0.2 rad/s. There is **no waiting time**: as written, the first control ticks after any
-start, while the encoder is still near zero, already satisfy it ❓. Whether that is seen
-depends on when the Jetson asks, and today it never asks: see
-[Interfaces: the serial protocol](../05-interfaces/serial-protocol.md#status-and-the-stall-flag).
-Worth adding a short debounce before an ESP32 build reports `motors=stall`.
+start, while the encoder is still near zero, already satisfy it ❓. The Jetson now asks for `STATUS`
+every 2 s and believes a stall only after **two consecutive samples**, which absorbs that:
+see [Interfaces: the serial protocol](../05-interfaces/serial-protocol.md#status-and-the-stall-flag).
+A short debounce in an ESP32 build is still worth having.

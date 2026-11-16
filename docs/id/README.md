@@ -37,7 +37,7 @@ menyebutkan sejauh mana setiap klaim sudah terbukti:
 
 | Anda… | Baca |
 |---|---|
-| Baru, dan ingin tahu ini apa | [Apa itu robot ini](../en/01-overview/what-it-is.md) *(Inggris)* |
+| Baru, dan ingin tahu ini apa | [Apa itu robot ini](01-overview/what-it-is.md) |
 | Penasaran bagaimana percakapan berjalan | [Satu giliran, dari awal sampai akhir](../en/01-overview/one-turn.md) *(Inggris)* |
 | Mencari arti sebuah istilah | [Daftar istilah](../en/01-overview/glossary.md) *(Inggris)* |
 | Ingin tahu program mana mengerjakan apa | [Otak: proses dan port](../en/04-brain/README.md) *(Inggris)* |
@@ -48,14 +48,14 @@ menyebutkan sejauh mana setiap klaim sudah terbukti:
 | Memastikan robot berhenti saat otaknya mati | [Watchdog](03-firmware/watchdog.md) |
 | Memeriksa arah putar roda | [Gerak: dari kalimat ke empat roda](03-firmware/motion.md) |
 | Memasang kabel tubuh robot | Bab perangkat keras masih direncanakan dan butuh pemilik proyek. Untuk sekarang: [`PROJECT_BRIEF.md`](../../planning/PROJECT_BRIEF.md) bagian Hardware dan [`robot_pins.h`](../../firmware/stm32/include/robot_pins.h), usulan yang belum pernah diperiksa pada papan sungguhan |
-| Menyambungkan layar, skrip, atau tubuh baru | [Antarmuka](../en/05-interfaces/README.md) *(Inggris)* |
+| Menyambungkan layar, skrip, atau tubuh baru | [Antarmuka](05-interfaces/README.md) |
 | Mengubah pengaturan, tetapi tidak terjadi apa-apa | [Konfigurasi](../en/05-interfaces/configuration.md) *(Inggris)* |
 | Memasang papan atau menyalakan robot | [Pemasangan](07-operations/install.md), lalu [Menjalankan sehari-hari](07-operations/running.md) |
 | Memakai dashboard atau layar di robot | [Dashboard dan panel](../en/06-dashboard/README.md) *(Inggris)* |
 | Mengetahui apa yang diketahui tentang perangkat keras | [Perangkat keras](../en/02-hardware/README.md) *(Inggris)* |
 | Robot "tuli", bisu, lambat, atau macet | [Indeks gejala](../en/07-operations/troubleshooting-index.md) *(Inggris)* |
-| Bertanya "mengapa bukan ROS 2?" atau "mengapa model itu?" | [Keputusan](../en/08-decisions/README.md) *(Inggris)* |
-| Mencari yang menunggu keputusan pemilik | [Menunggu pemilik proyek](../en/08-decisions/open-decisions.md) *(Inggris)* |
+| Bertanya "mengapa bukan ROS 2?" atau "mengapa model itu?" | [Keputusan](08-decisions/README.md) |
+| Mencari yang menunggu keputusan pemilik | [Menunggu pemilik proyek](08-decisions/open-decisions.md) |
 | Akan mengubah kode (manusia atau AI) | [`AGENTS.md`](../../AGENTS.md) dulu |
 | Menemui pesan galat | [`TROUBLESHOOTING.md`](../../dev-docs/ai/TROUBLESHOOTING.md), bisa dicari berdasarkan gejala |
 
@@ -67,12 +67,12 @@ menyebutkan sejauh mana setiap klaim sudah terbukti:
 | **02 Perangkat keras**: apa yang diketahui dan belum, sisi Jetson, kabel acuan | ◐ sebagian (Inggris): komponen, daya, dan kabel tubuh yang sebenarnya butuh pemilik proyek |
 | **03 Firmware**: tubuh acuan, watchdog, gerak dan tanda roda mecanum, simulator, apa yang harus dilakukan ESP32 | ✍️ ditulis. **Sudah diterjemahkan**: [ikhtisar](03-firmware/README.md), [watchdog](03-firmware/watchdog.md), [gerak](03-firmware/motion.md). Sisanya Inggris |
 | **04 Otak**: proses, alur suara, model dan memori, pengetahuan, penglihatan dan orang, keandalan | ✍️ ditulis (Inggris) |
-| **05 Antarmuka**: protokol serial, JSON balasan, WebSocket, referensi konfigurasi | ✍️ ditulis (Inggris) |
+| **05 Antarmuka**: protokol serial, JSON balasan, WebSocket, referensi konfigurasi | ✍️ ditulis. **Sudah diterjemahkan**: [peta](05-interfaces/README.md), [protokol serial](05-interfaces/serial-protocol.md). Sisanya Inggris |
 | **06 Dashboard dan panel**: setiap halaman, dan panel di robot | ✍️ ditulis dari kode sumber (Inggris), belum ada tangkapan layar |
 | **07 Operasional**: pemasangan, mode menjalankan, systemd, indeks gejala | ✍️ ditulis. **Sudah diterjemahkan**: [ikhtisar](07-operations/README.md), [pemasangan](07-operations/install.md), [menjalankan](07-operations/running.md). Sisanya Inggris |
-| **08 Keputusan**: batasan keras, alternatif yang ditolak, yang menunggu pemilik proyek | ✍️ ditulis (Inggris) |
+| **08 Keputusan**: batasan keras, alternatif yang ditolak, yang menunggu pemilik proyek | ✍️ ditulis. **Sudah diterjemahkan**: [ikhtisar](08-decisions/README.md), [menunggu pemilik](08-decisions/open-decisions.md). Sisanya Inggris |
 
-Halaman depan, tiga halaman operasional, dan tiga halaman firmware sudah diterjemahkan; sisanya menyusul bertahap.
+Halaman depan dan sebagian halaman dari bab 01, 03, 05, 07, dan 08 sudah diterjemahkan; sisanya menyusul bertahap.
 
 ## Fakta singkat (per 2026-11-12)
 
@@ -83,7 +83,7 @@ Halaman depan, tiga halaman operasional, dan tiga halaman firmware sudah diterje
 | Bahasa | Inggris, Indonesia, Arab; dipilih per kalimat dari kata-kata yang diucapkan |
 | Jaringan | Tidak ada yang keluar dari robot. Dashboard hanya ada di jaringan Anda sendiri |
 | Kecepatan ✅ | Dari akhir ucapan sampai kata pertama jawaban: **median 2181 ms, terbaik 1554 ms** (target 1500 ms). Kalimat singkat "oke, sebentar ya" bisa mulai dalam sekitar **123 ms** |
-| Pengujian | 1245 tes Python dan 634 pemeriksaan inti firmware, semuanya lulus pada 2026-11-16 |
+| Pengujian | 1255 tes Python dan 634 pemeriksaan inti firmware, semuanya lulus pada 2026-11-16 |
 | Proses | 9: `robot-llm`, `robot-whisper`, `robot-asr`, `robot-tts`, `robot-core`, `robot-embed`, `robot-vision`, `robot-ui`, `robot-face` |
 
 Angka berasal dari [`PROGRESS.md`](../../dev-docs/ai/PROGRESS.md) dan

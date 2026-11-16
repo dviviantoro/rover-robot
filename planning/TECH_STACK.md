@@ -123,6 +123,9 @@ matters. `scripts/models/fetch_denoise.sh`.
 
 ## Think
 
+> **As of 2026-11-16** the configured model is **LFM2.5-2.6B-Q5_K_M** (`./run.sh model`), not the Qwen3-4B default in
+> the table below, which records the original choice and the candidates.
+
 | Component | Choice | Approx RAM | Why |
 |---|---|---|---|
 | Engine | **llama.cpp** (server mode, OpenAI-compatible API) | — | Lean C++/CUDA, fastest community support for new model releases, GGUF quantization |
@@ -205,19 +208,16 @@ chooses: `warm` (vectors when it is up, keywords otherwise — never delays a tu
 |---|---|---|---|
 | TTS | **Supertonic-3** (ONNX) | **492 MB CPU / 1376 MB GPU measured** | One model, 31 languages including all three of ours, 10 preset speaker embeddings. The robot keeps **one voice** whichever language it answers in — Piper's three checkpoints are three different people, and the voice changing mid-conversation is the thing this fixes |
 
-**Dependency cost (AGENTS.md working rule 1):** the `supertonic` SDK needs
-**Slint 1.17.1 + Rust** (added M11, approved as the one Rust exception in AGENTS.md) is
-the on-robot panel, `face/`. Renders straight to DRM/KMS with the **software renderer** --
-no compositor, no X11, no Wayland, no GPU context. Chosen over `cage` and `weston`
-because, measured on this board, the service user takes and releases DRM master on
-`/dev/dri/card1` with no root and no seatd, so a compositor would have added a process
-and 40-80 MiB for nothing. (`nvidia-l4t-weston` stays the fallback if linuxkms ever
-fights us; it is vendor-built for this display stack and already installed, unlike cage's
-wlroots 0.15.1.) The software renderer also avoids Skia, which needs clang -- not
-installed -- and 4-8 GiB of build space on a root filesystem that is 94% full.
-**Measured: 11.0 MiB resident**, plus 8.4 MiB of DRM buffers, against 60 MiB for the
-NiceGUI dashboard. Feature flags are pinned `=1.17.1`: Slint master has already renamed
-them and deprecated `backend-linuxkms-noseat`.
+**Dependency cost (AGENTS.md working rule 1):** the `supertonic` SDK is a 52 KB
+pure-Python package on top of `onnxruntime`, `numpy`, `soundfile` and `huggingface-hub`,
+all of which were already installed for the ASR and the audio path (details below, under
+`onnxruntime-gpu`). No PyTorch, no transformers (constraint 4).
+
+> **Corrected 2026-10-22.** This paragraph used to begin "the `supertonic` SDK needs
+> **Slint 1.17.1 + Rust**" and then describe the on-robot panel for ten lines -- the
+> Slint note had been pasted over the Supertonic dependency note, leaving a sentence that
+> made no sense and a panel description in the wrong section. The panel is documented
+> where it belongs, under *Orchestration & UI* below.
 
 **LLM alternatives, 1B-3B** (added M10, fetched by `scripts/models/fetch_alternatives.sh`):
 Llama-3.2-3B-Instruct, Qwen2.5-3B-Instruct, granite-3.3-2b-instruct (IBM) and
@@ -301,6 +301,32 @@ its English and Arabic voices are more polished than Piper's.
 
 ---
 
+## See
+
+Added 2026-10-22 (M12). Full measurements and the reasoning: `dev-docs/modules/vision.md`.
+
+| Component | Choice | Licence | Cost (measured) | Why |
+|---|---|---|---|---|
+| Camera | **IMX219 on CSI**, through Argus: one `gst-launch-1.0` child (`nvarguscamerasrc` → `nvvidconv` → pipe) | GStreamer / NVIDIA, already installed | gst child **41 MiB PSS** | The sensor is behind the ISP and only Argus reaches it. OpenCV on the board has **no GStreamer**, so a subprocess + pipe, exactly as `aplay`/`arecord` are used |
+| Objects | **YOLOX-Tiny** ONNX, 416², COCO-80 | Apache-2.0 | 20 MiB, **145 ms** | Not YOLOv8: Ultralytics is AGPL-3.0 and its package imports PyTorch (constraint 4) |
+| Faces: detect | **YuNet 2023mar** ONNX | MIT | 0.2 MiB, **25 ms** | 5 landmarks for alignment |
+| Faces: recognise | **SFace 2021dec** ONNX, 128-d | Apache-2.0 | 37 MiB, **29 ms / face** | Not InsightFace: its pretrained models are non-commercial research only |
+| Runtime | **onnxruntime** (already approved, CPU provider) + **numpy** | MIT / BSD | service **166-176 MiB PSS** | No new Python package. No OpenCV, no Pillow, no PyTorch in the runtime path |
+| Store | **sqlite** file `run/faces.db`, 128 floats a sample | public domain | KiB | No photograph is stored; local only; `forget` removes a person completely |
+
+**Dependency cost (AGENTS.md working rule 1): zero new Python packages.** The one thing that
+might look new -- OpenCV -- is deliberately *not* used (`robot/vision/imaging.py` is the
+~100 lines of numpy that replace it). `ultralytics`, `insightface` and `torch` are installed in
+the user's site directory; none of them is imported by a service.
+
+**CPU, not GPU, on purpose.** A CUDA session in a fourth process costs a context of its own out
+of the unified pool (0.6-1.3 GiB as measured for Supertonic). `VISION_USE_GPU=1` exists and is
+unmeasured. **Total: ~213 MiB and ~0.27 of a core idle, ~1.05 cores when every frame is
+analysed**; the motion gate (`VISION_MOTION`) is what separates the two.
+
+**Not a security feature.** No liveness or anti-spoofing: a photograph of an enrolled person is
+recognised as them. Context and greeting only.
+
 ## Orchestration & UI
 
 | Component | Choice | Why |
@@ -310,6 +336,21 @@ its English and Arabic voices are more polished than Piper's.
 | UI | **NiceGUI** 3.16 (on FastAPI/Uvicorn) — **used as the server, not the renderer** | **Measured 60 MiB** (M8), under the 150 MB estimate. Provides FastAPI, uvicorn and the session middleware; the pages themselves are hand-written HTML/CSS/JS in `src/robot/ui/static/`, sharing the design system of the sibling robot project so the two look like one system. Runs as its own process and reaches the orchestrator only over a WebSocket — never by import — so the robot is unaffected when it dies. Brings `aiohttp`, used as the WebSocket client |
 | Monitoring | **jetson-stats** (`jtop` Python API) | Reads unified RAM, GPU, CPU, temps, power, per-process memory |
 | Supervision | **systemd** (`Restart=on-failure`) | On 8 GB an OOM kill is a "when", not an "if" — services must self-heal |
+
+### The on-robot panel (`face/`, Rust + Slint) — the one approved exception
+
+**Slint 1.17.1 + Rust** (added M11, approved as the one Rust exception in AGENTS.md) is
+the on-robot panel, `face/`. Renders straight to DRM/KMS with the **software renderer** --
+no compositor, no X11, no Wayland, no GPU context. Chosen over `cage` and `weston`
+because, measured on this board, the service user takes and releases DRM master on
+`/dev/dri/card1` with no root and no seatd, so a compositor would have added a process
+and 40-80 MiB for nothing. (`nvidia-l4t-weston` stays the fallback if linuxkms ever
+fights us; it is vendor-built for this display stack and already installed, unlike cage's
+wlroots 0.15.1.) The software renderer also avoids Skia, which needs clang -- not
+installed -- and 4-8 GiB of build space on a root filesystem that is 94% full.
+**Measured: 11.0 MiB resident**, plus 8.4 MiB of DRM buffers, against 60 MiB for the
+NiceGUI dashboard. Feature flags are pinned `=1.17.1`: Slint master has already renamed
+them and deprecated `backend-linuxkms-noseat`. See `dev-docs/modules/face.md`.
 
 **UI auth:** the dashboard exposes drive controls on the LAN. NiceGUI session auth is enabled
 (M8) and `robot-ui` **refuses to start** without `ROBOT_UI_PASSWORD` — an open page that can
@@ -326,12 +367,21 @@ so reaching the port is not enough.
 | Language | **C** (C++ acceptable for driver classes) |
 | Build system | **PlatformIO** (decided 2026-09-02) — `firmware/stm32/`, reproducible CLI builds, no IDE required on the Jetson. Set `PLATFORMIO_CORE_DIR` off the root filesystem |
 | Framework | **STM32duino** (`framework = arduino`) — chosen in M5 for working USB-CDC out of the box. The safety-critical logic is portable C that does not touch the framework at all, so this is a low-stakes choice |
-| Testing | Portable core built with plain gcc (`run_native_tests.sh`, 628 checks) and for the host by `tools/stm32_sim`, which speaks the real protocol over a PTY |
+| Testing | Portable core built with plain gcc (`run_native_tests.sh`, 634 checks) and for the host by `tools/stm32_sim`, which speaks the real protocol over a PTY |
 | RTOS | FreeRTOS optional — only if task scheduling gets complex |
 | Responsibilities | Mecanum inverse kinematics, PID motor loops, encoder reads, servo PWM, LED matrix refresh, **heartbeat watchdog** |
 
 No MicroPython or other interpreted runtime — it undermines the determinism that is the entire
 reason for having an MCU.
+
+---
+
+## Documentation site (build-time only)
+
+| Item | Choice | Notes |
+|---|---|---|
+| Generator | **MkDocs 1.6** with the **Material** theme (9.x) | Added 2026-11-16 at the owner's request, to publish `docs/` on GitHub Pages or Read the Docs. **Never on the robot's runtime path and never in `.venv`**: it lives in `.cache/docs-venv` (`requirements-docs.txt`), on the DATA disk. 153 MiB of disk, no RAM on the robot. The Markdown stays readable on GitHub without it |
+| Hosting | GitHub Pages (`.github/workflows/docs.yml`) or Read the Docs (`.readthedocs.yaml`) | one of the two. A Pages site from a private repository needs a paid plan |
 
 ---
 

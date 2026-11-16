@@ -102,20 +102,18 @@ flowchart TD
 ## `STATUS` and the stall flag
 
 The contract says the orchestrator should surface `motors=stall` "so the robot can say *I'm
-stuck* instead of lying", and the receiving side exists: a `STAT` line with `motors=stall`
-becomes the hardware note *"a wheel is stalled -- you are not actually moving"*.
+stuck* instead of lying". A `STAT` line with a **confirmed** stall becomes the hardware note *"a
+wheel is stalled -- you are not actually moving"*.
 
-**But nothing sends `STATUS` in normal operation.** Searching `src/`, `scripts/` and `tests/` on
-2026-11-16, the only caller of `request_status()` is `scripts/serial/protocol_test.py`. The body's
-battery voltage, temperature and stall flag therefore never reach the dashboard or the model, and
-a body that implements `STATUS` perfectly is still invisible until something asks.
-
-* **Status:** ❓ not fixed here, because the options are the owner's (poll `STATUS` every few
-  seconds beside the heartbeat; have the body volunteer a `STAT` line when something changes; or
-  piggyback it on `OK PING`). Recorded as Known issue #20.
-* **Why it matters now:** the reference firmware's stall test has no waiting time, so a poll
-  would immediately report false stalls at the start of every move unless it is debounced. See
-  [Motion](../03-firmware/motion.md#stall-detection-as-written).
+* **`robot-core` asks for `STATUS` every 2 s** (`STATUS_PERIOD_S`), beside the heartbeat. Before
+  2026-11-16 nothing did, so battery, temperature and the stall flag never arrived (Known issue #20).
+  The `serial_status` event carries them to the dashboard.
+* **A stall is believed after two consecutive samples** (`STALL_CONFIRM_SAMPLES`, so about 2 to 4 s).
+  The reference firmware's stall test has no waiting time, so the first control ticks of any start
+  look like a stall. The event has `stall_confirmed`, and only a confirmed stall reaches the model.
+* **A body that does not know `STATUS`** answers `ERR STATUS unknown`; the Jetson stops asking, once,
+  without reporting a refusal, and asks again after a reconnect.
+* `tests/test_status_poll.py` covers all three.
 
 ## Extending the protocol
 

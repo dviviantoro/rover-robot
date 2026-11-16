@@ -1347,7 +1347,7 @@ class CoreService:
         if kind == "serial_error":
             self.orch.note_from_hardware(
                 f"the body refused {event.get('verb')} ({event.get('reason')})")
-        elif kind == "serial_status" and event.get("motors") == "stall":
+        elif kind == "serial_status" and event.get("stall_confirmed"):
             self.orch.note_from_hardware(
                 "a wheel is stalled -- you are not actually moving")
         elif kind == "serial_up":

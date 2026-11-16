@@ -5,7 +5,7 @@ The Jetson sends intent; this decides how to execute it (AGENTS.md constraint 6)
 
 > ## ⚠️ Status: builds, tested, **never run on hardware**
 >
-> No STM32 has been attached to this project yet. The portable core is covered by 628
+> No STM32 has been attached to this project yet. The portable core is covered by 634
 > native checks and driven end-to-end through a real serial device by the host
 > simulator — but `board_stm32.cpp`, the pin map, the PID gains and the wheel sign
 > convention have never met a motor. Treat every pin and constant in `robot_pins.h` as
@@ -31,7 +31,7 @@ so the safety-critical logic runs under test on a normal machine.
 ## Build and test
 
 ```bash
-./run_native_tests.sh          # 628 checks, needs only gcc — no hardware, no PlatformIO
+./run_native_tests.sh          # 634 checks, needs only gcc — no hardware, no PlatformIO
 pio run                        # build for the STM32
 pio run -t upload              # flash
 pio device monitor             # watch the link
@@ -65,8 +65,9 @@ Do these in order. Skipping ahead makes failures much harder to attribute.
 1. **Flash with motors disconnected.** Confirm it enumerates as `/dev/ttyACM*` with
    vendor `0483`, and that `scripts/serial/stm32_console.py` gets `OK PING`.
 2. **Check the watchdog before connecting motors:**
-   `python scripts/serial/watchdog_test.py --port /dev/robot-stm32`.
-   Nothing else should be trusted until this passes on real silicon.
+   `python scripts/serial/watchdog_test.py --port /dev/robot-stm32`. On real hardware the script cannot see
+   the wheels, so it is **guided**: you watch a scope or LED on a PWM or standby pin (or wheels off the ground)
+   and answer what you see. Nothing else should be trusted until this passes on real silicon.
 3. **Verify each wheel individually, robot on blocks:**
    `python scripts/serial/verify_wheels.py --port /dev/robot-stm32`.
    Write the result into `mecanum_default_config()` **and** the table in

@@ -20,7 +20,22 @@ Group=jetson
 # Needed to open the STM32 serial device.
 SupplementaryGroups=dialout
 WorkingDirectory=/media/jetson/DATA/robot-py
+# vision.env FIRST and optional: core needs VISION_ENABLED from it, and both files set
+# LOG_LEVEL, where the last one read wins -- core's own belongs to core.env.
+EnvironmentFile=-/media/jetson/DATA/robot-py/config/vision.env
 EnvironmentFile=/media/jetson/DATA/robot-py/config/core.env
+# The websocket token (CORE_WS_TOKEN) lives in .env, which is gitignored. config/core.env
+# carries an EMPTY CORE_WS_TOKEN, so this file has to be read AFTER it. Without it core
+# started with no token at all and accepted any client that reached the port -- the
+# second lock docs/TECH_STACK.md promises was silently absent under systemd, while
+# run_stack.sh (which sources .env) had it. `-` = start anyway if the file is missing.
+EnvironmentFile=-/media/jetson/DATA/robot-py/.env
+# robot-core lists the PulseAudio sources and sinks (pactl) for Config -> Hardware. A
+# system unit gets no XDG_RUNTIME_DIR, and libpulse then cannot find the user's server:
+# `pactl info` answers "Connection refused" (verified on this board). Needs the user
+# manager running at boot: `sudo loginctl enable-linger jetson`.
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=PULSE_SERVER=unix:/run/user/1000/pulse/native
 
 ExecStart=/media/jetson/DATA/robot-py/.venv/bin/python -m robot.core.app
 
@@ -33,10 +48,19 @@ RestartSec=3
 # safety then depends entirely on the STM32 watchdog firing.
 OOMScoreAdjust=-500
 
-NoNewPrivileges=true
+# NOT NoNewPrivileges=true. robot-core supervises the other services through
+# `sudo -n systemctl start|stop|restart robot-<x>` (scripts/bringup/setup_sudoers.sh), and
+# sudo refuses to run under that flag: "The 'no new privileges' flag is set, which prevents
+# sudo from running as root" (verified on this board). With it set the on-demand embedding
+# server could never start, keepalive could never restart a dead engine, and the
+# dashboard's Apply/Restart buttons all failed. The sudoers rule is the privilege boundary
+# here, and it names six units and three verbs.
 ProtectSystem=strict
 ProtectHome=false
-ReadWritePaths=/media/jetson/DATA/robot-py/run
+# `config` too: Apply on the Memory page, the Hardware tab and the microcontroller
+# discovery all write config/*.env, and under ProtectSystem=strict that was a read-only
+# file system -- "Read-only file system" instead of a model change.
+ReadWritePaths=/media/jetson/DATA/robot-py/run /media/jetson/DATA/robot-py/config
 PrivateTmp=true
 
 [Install]

@@ -17,9 +17,8 @@ answering and driving.
 
 The token is a second lock behind the dashboard's own session login: something that merely
 reaches the port cannot drive the robot. The token lives in `.env` (gitignored), never in a
-tracked file. A reminder about a gap: `config/core.env` carries an **empty** `CORE_WS_TOKEN=`,
-the systemd unit reads `.env` after it, and `.env.example` lists only the dashboard's three
-settings, so **the token has to be added to `.env` by hand** ❓. With none set, the port accepts
+tracked file. `config/core.env` carries an **empty** `CORE_WS_TOKEN=`, the systemd unit reads `.env` after it,
+and `.env.example` lists the token (since 2026-11-16), so **it has to be set in `.env`** ❓. With none set, the port accepts
 any client that can reach it, which on loopback is anything running on the robot.
 
 On connection the server sends one `hello` with everything a page needs to draw itself:
@@ -103,7 +102,7 @@ the rest.
 | `turn_timeout` | A turn was forced to end after `after_s` |
 | `turn_done` | The turn is over, with its measured stage timings |
 | `serial_tx` | **The exact line written to the body**, clamping and rounding included |
-| `serial_up`, `serial_down`, `serial_error`, `serial_done`, `serial_status`, `serial_online` | The link and the body's answers |
+| `serial_up`, `serial_down`, `serial_error`, `serial_done`, `serial_status`, `serial_online` | The link and the body's answers. `serial_status` arrives about every 2 s and carries `stall_confirmed` |
 | `health` | The service lights, about every 3 s |
 | `keepalive` | The keepalive restarted something, gave up, or shrank the LLM |
 | `budget`, `models` | Memory pricing and the model catalogue changed |

@@ -8,7 +8,7 @@ nobody has to rediscover it or re-argue it without new information.
 |---|---|
 | [The hard constraints](hard-constraints.md) | The eight rules that need a human's sign-off to break, with the reason and the evidence behind each |
 | [Rejected and deferred alternatives](rejected-alternatives.md) | What was considered and not chosen, with the numbers, and the condition under which to look again |
-| [Waiting for the owner](open-decisions.md) | Open questions, including the one that blocks the first real watchdog proof |
+| [Waiting for the owner](open-decisions.md) | Open questions: what is left is the ESP32's own details, and the owner's yes or no on a rename |
 
 ## Where the full record lives
 

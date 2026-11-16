@@ -7,6 +7,16 @@ written so it can be found by searching for the error text.
 
 <!-- Add entries newest-first. Include: symptom, cause, fix, milestone. -->
 
+## The robot never says it is stuck, and the dashboard never shows the battery (2026-11-16)
+
+**Symptom.** Not seen on a robot yet; found by reading. A wheel stall or a flat battery reaches neither the dashboard nor the model.
+
+**Cause.** `STATUS` was only ever sent by `scripts/serial/protocol_test.py`. The `STAT` answer, and the code that turns
+`motors=stall` into "a wheel is stalled", existed but were never reached.
+
+**Fix.** `SerialLink` polls `STATUS` every 2 s and believes a stall after two consecutive samples, because the reference
+firmware's stall test has no waiting time and the first ticks of any start look like one. `tests/test_status_poll.py`.
+
 ## The robot strafes or turns the opposite way to what the document says (2026-11-16)
 
 **Symptom.** Not seen on a robot yet; found by reading. `DRIVE 0 0.3 0 1000` is documented as "strafes

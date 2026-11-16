@@ -78,9 +78,24 @@ Itu **🧪, bukan ✅**: rodanya variabel di simulator, bukan motor.
 | Belum terbukti | Mengapa penting |
 |---|---|
 | Watchdog **di papan sungguhan**, terutama **ESP32** | README firmware menyatakan tidak ada hal lain yang boleh dipercaya sebelum ini lulus di silikon nyata |
-| **Cara mengamatinya di perangkat keras nyata** | `watchdog_test.py --port` tidak dapat melihat roda: ia menunggu berkas `run/stm32_state.json` yang hanya ditulis simulator. Butuh pengamatan lain: osiloskop atau LED pada pin PWM/standby, atau roda terangkat dan mata Anda. Masalah Diketahui #21 |
+| **Pernah dijalankan di perangkat keras nyata** | Prosedur terpandu di bawah ada sejak 2026-11-16 dan **belum pernah dijalankan** ❓ |
 | Loop utama ESP32 **tidak pernah memblokir** | Jika Wi-Fi, Bluetooth, tulis flash, atau penyegaran layar menunda loop, penghentian terlambat ❓ |
 | Tidak ada yang **menggerakkan motor setelah berhenti** | Saat reset atau brown-out, pin berada pada keadaan apa pun yang ditinggalkan chip ❓ |
+
+## Membuktikannya di papan sungguhan
+
+`python scripts/serial/watchdog_test.py --port <port>` adalah pemeriksaan **terpandu** (Masalah Diketahui #21, selesai
+2026-11-16). Papan nyata tidak menulis berkas status seperti simulator, jadi skrip tidak dapat melihat roda. Ia
+mengerjakan bagian yang penting, dan Andalah sensornya:
+
+1. Amati **satu hal**: osiloskop atau LED pada pin **PWM** atau **standby driver** motor, atau roda dengan robot **di
+   atas balok**. Dengan motor tidak diberi daya, mengamati pin sudah cukup.
+2. Skrip memulai proses di sisi Jetson yang mengirim detak dan `DRIVE` panjang, lalu bertanya apakah yang diamati aktif.
+3. Ia `SIGKILL` proses itu: tanpa pembersihan, tanpa `STOP`.
+4. Anda menjawab apakah ia **berhenti sendiri dalam sekitar setengah detik**, dan satu detik kemudian apakah ia **masih
+   berhenti**. Waktu antara kill dan jawaban Anda mencakup reaksi Anda, jadi itu batas atas, bukan pengukuran.
+
+Butuh terminal interaktif; jawaban salah atau tanpa pengamatan berarti GAGAL.
 
 ## Jika Anda mengubahnya
 

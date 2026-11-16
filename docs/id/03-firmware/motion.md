@@ -138,5 +138,6 @@ kd 0`, keluaran dibatasi ±1,0 dari daya penuh. **Semuanya usulan** ❓: setel d
 * **Anti-windup:** integral hanya bertambah jika tidak mendorong lebih jauh ke kejenuhan. 🧪 teruji.
 * **Setpoint nol berarti berhenti:** PID di-reset dan mengeluarkan 0. 🧪 teruji.
 * **Deteksi macet seperti tertulis:** roda dianggap macet jika target di atas 1,0 rad/s dan kecepatan terukur di
-  bawah 0,2 rad/s, **tanpa waktu tunggu** ❓, jadi tik-tik awal setiap gerak bisa terbaca macet. Saat ini Jetson
-  tidak pernah menanyakannya (Masalah Diketahui #20); tambahkan jeda singkat sebelum melaporkan `motors=stall`.
+  bawah 0,2 rad/s, **tanpa waktu tunggu** ❓, jadi tik-tik awal setiap gerak bisa terbaca macet. Sejak 2026-11-16 Jetson
+  menanyakan `STATUS` tiap 2 detik dan baru percaya macet setelah **dua sampel berturut-turut** (Masalah Diketahui #20);
+  jeda singkat di firmware ESP32 tetap berguna.
