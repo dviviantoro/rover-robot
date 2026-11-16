@@ -8,7 +8,7 @@ person has to decide**. Nothing here was changed without that decision. Numbers 
 
 | # | Question | Why it blocks | Suggested answer |
 |---|---|---|---|
-| **#18** | Which way is `+vy`, and which way is `+omega`? The formulas and the Jetson say **left** and **counter-clockwise**; the protocol document's examples, `verify_wheels.py`, the `stm32_console.py` shorthands and the `drive` tool's `right` alias say **right** and **clockwise** ([evidence](../03-firmware/motion.md#open-question-which-way-is-vy-and-which-way-is-omega)) | A correct robot would look wrong, and a right sign might be "fixed" | Keep the formulas and the Jetson (no firmware or behaviour change) and correct the five places that disagree. **The protocol document is the contract**, so this is the owner's call |
+| ~~#18~~ | ~~Which way is `+vy`, and which way is `+omega`?~~ | | **Settled 2026-11-16**: `+vy` left, `+omega` counter-clockwise; six places corrected ([Motion](../03-firmware/motion.md#settled-which-way-is-vy-and-which-way-is-omega)) |
 | **#21** | How is the watchdog proved **on the real board**? `watchdog_test.py --port` waits for a state file that only the simulator writes, so on a real port it fails at step 3 | The firmware README says nothing else should be trusted until this passes on real silicon | Something visible: a scope or LED on the motor driver's standby or PWM pin, then the wheels off the ground. Optionally teach the script to read an LED or a pin state through an agreed `STATUS` field |
 
 ## B. Before the ESP32 is a first-class body

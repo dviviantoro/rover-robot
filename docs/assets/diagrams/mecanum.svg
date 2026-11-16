@@ -117,7 +117,7 @@
 <text x="534" y="400" font-size="12" font-weight="400" text-anchor="start" fill="#0f172a">wheel turns the other way (negative speed)</text>
 <text x="40" y="436" font-size="12" font-weight="400" text-anchor="start" fill="#475569">Roller strokes show the rollers that touch the floor. They must point toward the middle of the chassis (an X); the picture assumes that.</text>
 <text x="40" y="454" font-size="12" font-weight="400" text-anchor="start" fill="#475569">Frame: x forward, y left, omega counter-clockwise. Wheel order everywhere: 0 front-left, 1 front-right, 2 rear-left, 3 rear-right.</text>
-<rect x="30" y="460" width="940" height="56" rx="8" fill="#fffbeb" stroke="#d97706"/>
-<text x="46" y="484" font-size="13" font-weight="700" text-anchor="start" fill="#92400e">Open question (Known issue #18): serial-protocol.md and verify_wheels.py say a positive vy "strafes right".</text>
-<text x="46" y="504" font-size="12" font-weight="400" text-anchor="start" fill="#92400e">The formulas, and the Jetson (foot_direction left = +vy), say left. Decide, then fix whichever is wrong, before the first wheel check.</text>
+<rect x="30" y="460" width="940" height="56" rx="8" fill="#ecfdf5" stroke="#059669"/>
+<text x="46" y="484" font-size="13" font-weight="700" text-anchor="start" fill="#065f46">Settled 2026-11-16 (Known issue #18): a positive vy strafes left and a positive omega turns left.</text>
+<text x="46" y="504" font-size="12" font-weight="400" text-anchor="start" fill="#065f46">The protocol doc, the bring-up script, the hand console and the tool alias were corrected to match. Still to be checked on a real chassis.</text>
 </svg>

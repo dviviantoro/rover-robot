@@ -7,6 +7,262 @@ written so it can be found by searching for the error text.
 
 <!-- Add entries newest-first. Include: symptom, cause, fix, milestone. -->
 
+## The robot strafes or turns the opposite way to what the document says (2026-11-16)
+
+**Symptom.** Not seen on a robot yet; found by reading. `DRIVE 0 0.3 0 1000` is documented as "strafes
+right", but the firmware formulas make it a strafe **left**, and `turn.py` agrees with the formulas.
+
+**Cause.** Two coordinate conventions in one repository. The formulas, `turn.py` and the firmware test use x forward,
+y left, omega counter-clockwise. `serial-protocol.md`, `verify_wheels.py`, the `stm32_console.py` shorthands (`r`,
+`cw`), the `drive` tool's `right` alias and the markers-mode prompt (`vy=<right m/s>`) used the opposite one.
+
+**Fix.** The owner chose the first convention (2026-11-16). Those places were corrected, and the frame is now stated
+beside the formulas in `serial-protocol.md`. `tests/test_conventions.py` keeps them in step. Still to be checked on a real
+chassis with `scripts/serial/verify_wheels.py`.
+
+## A conversation has no summary — the person left and nothing was written (2026-11-11)
+
+**Symptom.** A person talks to the robot, walks away, and the stored conversation has no summary
+(Logs -> Conversations says "The summary is being written…" for ever). Or the person's notes were
+never updated after a short conversation.
+
+**Cause.** The summary was written once, when the person left, and only if two or more turns had
+not yet been summarised. If any turn started in the meantime it was **cancelled** (one LLM slot --
+`Social.on_busy`) and nothing brought it back until that person next left; a single-turn
+conversation was skipped outright; a model that returned junk left it empty for ever. There was
+also only one summary per *person*, never one per conversation.
+
+**Fix.** Every conversation (a visit) has its own row in `conversations`, and `Social._sweep` (every
+15 s) writes whatever is owed when the robot is idle. After `SUMMARY_TRIES` unusable answers, or with
+no model, the plain `people.plain_summary` is stored with `kind="auto"`. The conversation in progress
+is excluded. Regression tests: `TestEveryConversationIsStoredAndSummarisedWhenItEnds`.
+Look: `grep 'summarised .* conversation' .cache/tmp/core.log`.
+
+## Choosing a model on the Memory page does not stick — the old one comes back (2026-11-10)
+
+**Symptom.** Llama-3.2-3B chosen and Applied; `config/llm.env` was rewritten; a minute later the previous
+(smaller) model was running again and the pin said so. The log had `restart llm via dev`, `llm is now DOWN`,
+`llm is down; restarting it (attempt 1 of 4)` and later `falling back to Qwen2.5-3B ... DOWNGRADE`.
+
+**Cause — three, each necessary.** (1) The health poll painted the LLM DOWN while it loaded (20-40 s of
+`/health` "not ready"), over the `RESTARTING` Apply had set; keepalive restarted it again mid-load.
+(2) Restarted in place beside a resident whisper and Supertonic, a 3B model fails
+`cudaMalloc failed: out of memory` — it only loads on a cold start, where it goes first. (3) Pumps
+repainted services being restarted on purpose, so keepalive restarted TTS during the LLM load. Two failed
+restarts make keepalive "fall back" and re-pin a smaller model: that is the revert.
+
+**Fix.** `CoreService._probe_llm` (leaves RESTARTING alone), `_reload_llm` (stops whisper and TTS, loads the
+LLM, starts them again), `Health.hold/release`, `_restart_lock` (one restart at a time). Verified live,
+both directions. **To see where you stand: `./run.sh model`.**
+**Regression tests:** `tests/test_model_switch.py`.
+
+**If it still fails**, the message now says so in words: `there was no room for it on the GPU`. Then the
+selection genuinely does not fit with everything else resident — choose a smaller model or a smaller
+listening model (large-v3-turbo q5_0 instead of q8_0 is ~350 MiB), or stop what you do not need.
+
+## The robot never asks a stranger's name, or asks and then does nothing (2026-10-29)
+
+Work down the list; each line is a rule in `people.md`, and the log line to look for.
+
+* **Nothing is asked.** `grep 'asked a stranger\|talking with\|has left' .cache/tmp/core.log`. It asks
+  only when **exactly one** face is in view, unknown, score >= 0.75, >= 60 px wide
+  (`CORE_PEOPLE_MIN_FACE`), steady for 4 s, the robot idle, asking on (Config -> People), `CORE_PEOPLE=1`, and not within `CORE_PEOPLE_ASK_COOLDOWN_S` (30 s) of the last question
+  or 5 min of a "no". A stranger who does not answer within 60 s is asked again. The chip at the top of the thread shows `Someone I do not know` while it waits.
+* **It asked, and the answer was ignored.** The answer must be plainly a name: `My name is Deny`,
+  `Saya Budi`, `اسمي محمد`. A sentence with a question mark, a digit, a question word or more than
+  three words is an ordinary turn on purpose — say just the name. Open window: 60 s.
+* **"I couldn't see your face clearly."** robot-vision refused to enrol: face the camera, alone, in
+  the room's real light; the reason it gave is in `.cache/tmp/vision.log`. Two tries, then it stops.
+* **"I already know someone called X."** Deliberate: a name already known is never given to a face
+  that was not recognised as it. Come closer so the match succeeds, give another name, or enrol by
+  hand on Config -> People ("Introduce someone").
+* **It does not greet someone who came back.** Greeting needs them away >= `CORE_PEOPLE_AWAY_S`
+  (2 min) by the clock of their last sighting, the robot idle, and *Greet* on.
+* **Wrong person's past in the prompt.** `grep 'talking with' .cache/tmp/core.log` says whose past was loaded. It is the face the camera
+  matched; if two people look alike, raise `VISION_FACE_THRESHOLD`.
+* **The page says `People are not tracked`.** No camera (`VISION_ENABLED=0`) or `CORE_PEOPLE=0`.
+
+## "Learn this face" says nothing — no success, no reason it was refused (found 2026-10-29)
+
+**Symptom.** On the Vision page (M12) pressing *Learn this face* showed "Looking at you -- hold still…"
+and then nothing: not "Learned Deny", not "more than one person in view". The face *was* learned.
+
+**Cause.** `_vision_command` sent `{"type": "vision_result", "action": kind, **reply}`; the reply
+from robot-vision has its own `type` (`enrolled`, `error`, `forgotten`), and a spread after the key
+overwrites it. The page listens for `vision_result`, so it never arrived. Found by a test of the
+merged page's commands, not by anyone using it — nobody had pressed the button with a face in view.
+
+**Fix.** `type` is set last; robot-vision's word is kept as `result`.
+**Regression test:** `TestRobotCoreAnswersThePage` (it asserts on `vision_result`).
+
+## The notes about a person come back empty (2026-10-29)
+
+**Symptom.** After someone left, `grep 'notes about' .cache/tmp/core.log` said `came out unusable ('')`
+every time, and the person's `summary` stayed blank. Their turns were still stored.
+
+**Cause.** Qwen3 is a hybrid-reasoning model. Asked a plain question it *thinks* first; llama.cpp puts
+the thinking in `reasoning_content`, which `LlamaClient` does not read (it reads `delta.content`), and the
+160-token budget was spent before the answer began. Reproduced against the real model: 0 characters
+without the switch, a full answer with `/no_think`. A JSON grammar did not help (still 0).
+
+**Fix.** The notes request ends with Qwen3's documented soft switch, `/no_think`
+(`social.NO_THINK`); other models see one odd token and carry on. The reply is stripped of any
+`<think>` block, the switch and surrounding quotes, and rejected if it is under 12 characters or looks
+like JSON — in which case the turns stay unsummarised and are retried next time.
+**Regression test:** `TestTheNotesAreWrittenByWhateverModelIsLoaded`. The same trap awaits any new
+request made to the LLM without the reply grammar.
+
+## The Conversation page shows no picture, or "Seeing (camera)" is amber (2026-10-22)
+
+Work down this list; each line was a real failure or a measured fact while building it.
+
+* **`robot-vision` is not running** -> the row is DOWN. `./run.sh status`; `tail
+  .cache/tmp/vision.log`. `./run.sh` skips it, with a reason, when `/dev/video0`,
+  `gst-launch-1.0` or `models/vision/` is missing -- `./scripts/models/fetch_vision.sh`.
+* **It is running and the row is UNKNOWN** -> the camera is the problem and a restart will not
+  help (keepalive deliberately leaves it). The page and `pong` carry the reason GStreamer or
+  Argus printed. `camera busy` means **another process has the sensor** -- Argus allows one
+  client. `vision_smoke.py camera`, a stray `gst-launch-1.0 nvarguscamerasrc`, or a second
+  robot-vision. `systemctl status nvargus-daemon`.
+* **"No frame for 10 s"** -> Argus hung. It restarts itself, backing off to 30 s. If it never
+  recovers: `sudo systemctl restart nvargus-daemon`.
+* **Under systemd only: the sensor never opens** -> a `PrivateTmp=true` on the unit. Argus
+  reaches its daemon through `/tmp/argus_socket` and a private `/tmp` is empty.
+  `robot-vision.service` omits it on purpose.
+* **Picture 404 "has not produced a picture for N s"** -> by design: a stale frame is never
+  shown. The camera has stopped; see above.
+* **Dark, grainy, pink** -> normal here: the room is dim, the sensor runs at high gain and the
+  white balance is Argus's. Detection copes; a lamp helps more than any setting.
+* **Nothing is ever detected** -> `VISION_DETECT_CONF` (0.40) is above what the model scores
+  for that object, or the object is not one of the 80 COCO classes. `vision_smoke.py image
+  some.jpg` takes the camera out of the question.
+* **It never goes quiet / CPU stays high** -> the motion gate sees movement in noise. Measure
+  the room: the mean change per 16 px block between two frames of a still scene must sit
+  below `VISION_MOTION` (2.0). A darker room has more grain. `pong` reports `analysed` and
+  `skipped`; in a still room `skipped` should dominate.
+
+## A face is not recognised, or is recognised as the wrong person (2026-10-22)
+
+Recognition is a similarity score against a threshold (0.363), so both errors are the
+threshold's trade. Look at the numbers before moving it: the dashboard box shows the
+similarity next to the name; `vision_smoke.py faces` prints it for photographs.
+
+* **Not recognised** (similarity below 0.363): enrol again in the light you will actually be
+  seen in -- samples only ever help, a person is the best of theirs. Face the camera; the
+  models want a roughly frontal face, and a small face (far away) is a poor one.
+* **Recognised as someone else:** raise `VISION_FACE_THRESHOLD`. Measured impostor pairs here
+  reached 0.349, which is close to 0.363 -- on a crowd, 0.45 is not unreasonable.
+* **Enrolment refuses:** "no face in view", "more than one person in view" (two faces within
+  half of each other's area), "not clear enough", or "already matches <name>" -- the last is
+  the guard against filing someone under a second name; enrol again with `force` to override.
+* **It is not a lock.** A photograph of an enrolled person is recognised as them. No liveness.
+
+## Everything works under `run.sh` and breaks under systemd (2026-10-22)
+
+**Symptom.** After `install_services.sh`: the robot is deaf or mute with every light green;
+the dashboard's Restart/Apply buttons, keepalive and the on-demand embedding server all
+report failures; Apply says `Read-only file system`; `robot-tts` exits at start with
+`ValueError: could not convert string to float: '40        # ...'`. None of it happens
+under `./run.sh`.
+
+**Cause.** `run_stack.sh` sources the env files with bash, as the logged-in user. A unit
+reads them differently and runs sandboxed. Four separate differences, each reproduced:
+
+| difference | what it broke | check |
+|---|---|---|
+| `NoNewPrivileges=true` | `sudo -n systemctl …` and `sudo tee drop_caches` refuse to run | `systemd-run --user -p NoNewPrivileges=yes sudo -n true` |
+| no `XDG_RUNTIME_DIR` | libpulse cannot find the user's server → `pactl`/`arecord`/`aplay` fail | `env -u XDG_RUNTIME_DIR pactl info` → *Connection refused* |
+| `EnvironmentFile=` keeps `# comments` | a trailing comment becomes part of the value | `systemd-run -p EnvironmentFile=f env` |
+| `ProtectSystem=strict` + `ReadWritePaths=run` | `config/*.env` is read-only for the process that writes it | read the unit against `_write_env` |
+| (and) core never read `.env` | `CORE_WS_TOKEN` empty → websocket accepts anyone | compare `EnvironmentFile=` lines |
+
+**Fix.** The units now carry `Environment=XDG_RUNTIME_DIR/PULSE_SERVER` (asr, tts, core),
+no `NoNewPrivileges` on core/ui/tts (the sudoers rule is the boundary), `.env` after
+`core.env`, and `config` writable for core. `config/tts.env` lost its trailing comment.
+`tests/test_config_files.py` reads the files the way systemd does. **Needs
+`sudo loginctl enable-linger jetson`** so `/run/user/1000` exists at boot.
+
+**Rule.** A change to a service is not done until it has been read under *both*
+supervisors.
+
+## "Remember that …" does nothing (2026-10-22)
+
+**Symptom.** The model emits `remember`/`save_memory`; `core.log` says
+`remember (no store configured): …`; the fact is gone. The embedding server is configured
+and retrieval works.
+
+**Cause.** The `remember` closure had been pasted into the end of `_paint_embed_health`,
+which runs only in on-demand mode and only after `run()` had already passed `self.remember`
+— still `None` — to the `ToolBox`.
+
+**Fix.** Defined in `CoreService.enable_knowledge`, beside the ingestor it feeds
+(`tests/test_audit_fixes.py::TestSpokenFactsAreKept`).
+
+## A turn ends the instant it starts, after a barge-in (2026-10-22)
+
+**Symptom.** Interrupt the robot near the end of a sentence. The next turn's `turn_done`
+arrives immediately with the *previous* turn's `audio_s`; the answer is still being
+generated and then plays with no turn around it. In `core.log` an `ERROR robot-tts: drain
+failed: aplay exited with status -15` for what was an ordinary cancel.
+
+**Cause.** A cancel landing during `player.drain()` kills `aplay`; `_finish` swallowed the
+error and sent `finished` with `id: None` (the turn had just been reset). robot-core's
+`on_tts` completed whichever turn was current, without looking at the id.
+
+**Fix.** TTS sends no `finished` for a cancelled generation. Core ignores `started`,
+`finished` and `error` that name another turn, and only a `finished` for the audio that is
+really playing reopens the microphone — a voice preview's `finished` still does.
+
+## The robot answers a cough that whisper called Chinese (2026-10-22)
+
+**Symptom.** `ASR_LANGUAGES=id,en,ar` is set, the log shows `[??/other] '对对对…'` being
+decoded, and the LLM answers it. No `ignored` event.
+
+**Cause.** whisper-server reports the language as a full name (`whisper_lang_str_full`:
+`"chinese"`). The recogniser mapped the three we route and returned `None` for the rest;
+core treats `None` as "the decoder said nothing" and lets it through on purpose. So the
+filter could never see the case it exists for. The test passed the tag `"zh"` straight in
+and never went through the recogniser.
+
+**Fix.** Unmapped names pass through as named. `_reject` drops them unless the words are
+ours (`language.classify`) — whisper tags a short English sentence as German, and the
+words are better evidence than the tag (`language.heard` already says so).
+`tests/test_audit_fixes.py::TestTheListenFilterReallyFilters` runs transcript → recogniser
+→ filter end to end.
+
+## "Restart microcontroller" leaves the body disconnected (2026-10-22)
+
+**Symptom.** Config → Hardware → restart the serial link: after ~10 s *could not open
+<port>*, no heartbeat, `serial` DOWN; the port is fine. Only restarting robot-core helps.
+
+**Cause.** `SerialLink.close()` cancelled the heartbeat task that `run()` was awaiting
+through `gather`; `CancelledError` surfaced in `run()` as its *own* cancellation and ended
+the loop. Reproduced by running `run()` against `tools/stm32_sim`, calling `close()` and
+watching the task finish "cancelled" without ever reconnecting.
+
+**Fix.** `close()` sets `_reconnecting`; `run()` treats a cancellation with it set as
+"reconnect", and any other as "stop".
+
+## A long prompt silently changes the persona for the rest of the session (2026-10-22)
+
+**Symptom.** After one `request (2065 tokens) exceeds the available context size` the
+robot's replies change character and stay that way; `core.log` once says *this model's chat
+template rejected the system role*.
+
+**Cause.** Any HTTP 400 set `LlamaClient.system_role = False`, folding the persona into the
+user turn permanently — even though the template was fine and the prompt was merely too long.
+
+**Fix.** Fold only when the error is about roles/templates, and remember it only after the
+folded retry succeeds.
+
+## Switched to "interrupt" mid-reply and the robot never hears again (2026-10-22)
+
+**Cause.** `listen_mode` is live. `_set_gate` returned early for *every* call in
+`interrupt` — including reopening a gate the previous mode had shut — so robot-asr dropped
+every frame and the deaf watchdog was refused the same way.
+
+**Fix.** `interrupt` never shuts the gate but can always open it.
+
 ## `cudaMalloc failed: out of memory` while `free` shows GB available
 
 **Symptom.** `llama-server` exits at startup:

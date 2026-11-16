@@ -35,7 +35,7 @@ How the direction becomes numbers (a unit step before the 0.2 m/s scaling), from
 | `left` / `right` | 0 | +1 / −1 | 0 |
 | `turn_left` / `turn_right` | 0 | 0 | +1.2 / −1.2 |
 
-(Whether `+vy` really is *left* on the chassis is [Known issue #18](../03-firmware/motion.md#open-question-which-way-is-vy-and-which-way-is-omega).)
+(Whether `+vy` really is *left* on the chassis is [Known issue #18](../03-firmware/motion.md#settled-which-way-is-vy-and-which-way-is-omega).)
 
 ## Why it is built this way
 

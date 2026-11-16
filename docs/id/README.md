@@ -44,9 +44,9 @@ menyebutkan sejauh mana setiap klaim sudah terbukti:
 | Menelusuri robot yang lambat atau "tuli" | [Alur suara](../en/04-brain/voice-pipeline.md), lalu [Keandalan](../en/04-brain/reliability.md) *(Inggris)* |
 | Memilih atau mengganti model | [Model dan memori](../en/04-brain/models-and-memory.md) *(Inggris)* |
 | Mengajari robot dari dokumen | [Pengetahuan](../en/04-brain/knowledge.md) *(Inggris)* |
-| Menulis atau memeriksa firmware tubuh robot | [Tubuh: firmware](../en/03-firmware/README.md), lalu [ESP32 sebagai tubuh](../en/03-firmware/esp32-conformance.md) *(Inggris)* |
-| Memastikan robot berhenti saat otaknya mati | [Watchdog](../en/03-firmware/watchdog.md) *(Inggris)* |
-| Memeriksa arah putar roda | [Gerak: dari kalimat ke empat roda](../en/03-firmware/motion.md) *(Inggris)* |
+| Menulis atau memeriksa firmware tubuh robot | [Tubuh: firmware](03-firmware/README.md), lalu [ESP32 sebagai tubuh](../en/03-firmware/esp32-conformance.md) *(Inggris)* |
+| Memastikan robot berhenti saat otaknya mati | [Watchdog](03-firmware/watchdog.md) |
+| Memeriksa arah putar roda | [Gerak: dari kalimat ke empat roda](03-firmware/motion.md) |
 | Memasang kabel tubuh robot | Bab perangkat keras masih direncanakan dan butuh pemilik proyek. Untuk sekarang: [`PROJECT_BRIEF.md`](../../planning/PROJECT_BRIEF.md) bagian Hardware dan [`robot_pins.h`](../../firmware/stm32/include/robot_pins.h), usulan yang belum pernah diperiksa pada papan sungguhan |
 | Menyambungkan layar, skrip, atau tubuh baru | [Antarmuka](../en/05-interfaces/README.md) *(Inggris)* |
 | Mengubah pengaturan, tetapi tidak terjadi apa-apa | [Konfigurasi](../en/05-interfaces/configuration.md) *(Inggris)* |
@@ -65,14 +65,14 @@ menyebutkan sejauh mana setiap klaim sudah terbukti:
 |---|---|
 | **01 Gambaran umum**: apa itu robot ini, satu giliran, daftar istilah | ✍️ ditulis (Inggris) |
 | **02 Perangkat keras**: apa yang diketahui dan belum, sisi Jetson, kabel acuan | ◐ sebagian (Inggris): komponen, daya, dan kabel tubuh yang sebenarnya butuh pemilik proyek |
-| **03 Firmware**: tubuh acuan, watchdog, gerak dan tanda roda mecanum, simulator, apa yang harus dilakukan ESP32 | ✍️ ditulis (Inggris) |
+| **03 Firmware**: tubuh acuan, watchdog, gerak dan tanda roda mecanum, simulator, apa yang harus dilakukan ESP32 | ✍️ ditulis. **Sudah diterjemahkan**: [ikhtisar](03-firmware/README.md), [watchdog](03-firmware/watchdog.md), [gerak](03-firmware/motion.md). Sisanya Inggris |
 | **04 Otak**: proses, alur suara, model dan memori, pengetahuan, penglihatan dan orang, keandalan | ✍️ ditulis (Inggris) |
 | **05 Antarmuka**: protokol serial, JSON balasan, WebSocket, referensi konfigurasi | ✍️ ditulis (Inggris) |
 | **06 Dashboard dan panel**: setiap halaman, dan panel di robot | ✍️ ditulis dari kode sumber (Inggris), belum ada tangkapan layar |
 | **07 Operasional**: pemasangan, mode menjalankan, systemd, indeks gejala | ✍️ ditulis. **Sudah diterjemahkan**: [ikhtisar](07-operations/README.md), [pemasangan](07-operations/install.md), [menjalankan](07-operations/running.md). Sisanya Inggris |
 | **08 Keputusan**: batasan keras, alternatif yang ditolak, yang menunggu pemilik proyek | ✍️ ditulis (Inggris) |
 
-Halaman depan dan tiga halaman operasional sudah diterjemahkan; sisanya menyusul bertahap.
+Halaman depan, tiga halaman operasional, dan tiga halaman firmware sudah diterjemahkan; sisanya menyusul bertahap.
 
 ## Fakta singkat (per 2026-11-12)
 
@@ -83,7 +83,7 @@ Halaman depan dan tiga halaman operasional sudah diterjemahkan; sisanya menyusul
 | Bahasa | Inggris, Indonesia, Arab; dipilih per kalimat dari kata-kata yang diucapkan |
 | Jaringan | Tidak ada yang keluar dari robot. Dashboard hanya ada di jaringan Anda sendiri |
 | Kecepatan ✅ | Dari akhir ucapan sampai kata pertama jawaban: **median 2181 ms, terbaik 1554 ms** (target 1500 ms). Kalimat singkat "oke, sebentar ya" bisa mulai dalam sekitar **123 ms** |
-| Pengujian | 1156 tes Python dan 634 pemeriksaan inti firmware, semuanya lulus pada 2026-11-11 |
+| Pengujian | 1245 tes Python dan 634 pemeriksaan inti firmware, semuanya lulus pada 2026-11-16 |
 | Proses | 9: `robot-llm`, `robot-whisper`, `robot-asr`, `robot-tts`, `robot-core`, `robot-embed`, `robot-vision`, `robot-ui`, `robot-face` |
 
 Angka berasal dari [`PROGRESS.md`](../../dev-docs/ai/PROGRESS.md) dan

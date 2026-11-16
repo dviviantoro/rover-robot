@@ -52,7 +52,7 @@ ability to do so would let it bypass the kinematics that keep motion sane.
 
 ```
 DRIVE 0.5 0.0 0.0 1500     # forward at 0.5 m/s for 1.5 s
-DRIVE 0.0 0.3 0.0 1000     # strafe right (mecanum) for 1 s
+DRIVE 0.0 0.3 0.0 1000     # strafe left (mecanum) for 1 s
 DRIVE 0.0 0.0 1.2 800      # rotate in place
 FACE happy
 HAND wave
@@ -170,6 +170,8 @@ The Jetson **never** generates PWM, runs a PID loop, or computes wheel speeds.
 
 ## Mecanum kinematics reference (STM32 side)
 
+Frame: **x forward, y left, omega counter-clockwise** seen from above (so `+vy` strafes
+left and `+omega` turns left), with the rollers forming an X. Settled 2026-11-16.
 For wheel radius `r`, half-width `lx`, half-length `ly`:
 
 ```
@@ -219,7 +221,7 @@ each fails in a distinctive way if a sign is wrong:
 |---|---|---|
 | `DRIVE 0.3 0 0 1000` | straight forward | veers or spins |
 | `DRIVE -0.3 0 0 1000` | straight back | veers or spins |
-| `DRIVE 0 0.3 0 1000` | strafes right, no rotation | rotates, or crabs diagonally |
+| `DRIVE 0 0.3 0 1000` | strafes left, no rotation | rotates, or crabs diagonally |
 | `DRIVE 0 0 1.0 1000` | rotates in place, no translation | translates while turning |
 
 A robot that drives forward correctly but strafes diagonally has a **roller** orientation

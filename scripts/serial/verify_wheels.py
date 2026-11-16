@@ -102,7 +102,7 @@ async def main() -> int:
     print("=" * 66)
     print("\n  Then re-flash and confirm the composite motions in the same section:")
     print("    DRIVE 0.3 0 0 1000   -> straight forward")
-    print("    DRIVE 0 0.3 0 1000   -> strafes right, no rotation")
+    print("    DRIVE 0 0.3 0 1000   -> strafes left, no rotation")
     print("    DRIVE 0 0 1.0 1000   -> rotates in place, no translation")
     return 0
 

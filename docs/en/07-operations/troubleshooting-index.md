@@ -111,7 +111,7 @@ words in quotes** (each is the start of an entry's heading).
 | Build error `LL_GPIO_PULL_NO undeclared` | "`LL_GPIO_PULL_NO undeclared` building STM32duino" |
 | Build error `typedef struct pid_t pid_t` | "conflicting declaration" |
 | The body is an ESP32 and the checks say "no STM32" | not in the log: [Known issue #19](../../../dev-docs/ai/PROGRESS.md) and [The ESP32 as the body](../03-firmware/esp32-conformance.md) |
-| The robot strafes or turns the wrong way | not in the log: Known issue #18 and [Motion](../03-firmware/motion.md#open-question-which-way-is-vy-and-which-way-is-omega) |
+| The robot strafes or turns the wrong way | not in the log: Known issue #18 and [Motion](../03-firmware/motion.md#settled-which-way-is-vy-and-which-way-is-omega) |
 
 ## The dashboard and the supervisors
 

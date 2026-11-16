@@ -149,6 +149,10 @@ class ToolBox:
         self.serial = serial
         self.remember = remember
         self.on_event = on_event
+        # A task nobody holds a reference to can be garbage-collected mid-flight, and an
+        # exception inside it is reported only when that happens. Both would make a fact
+        # the robot was told to keep disappear without a word.
+        self._background: set[asyncio.Task] = set()
 
     @staticmethod
     def _number(args: dict[str, str], *names: str, default: float = 0.0) -> float:
@@ -197,7 +201,7 @@ class ToolBox:
 
     async def _drive(self, call: ToolCall) -> str:
         vx = clamp(self._number(call.args, "vx", "forward", "x"), LIMIT_VX)
-        vy = clamp(self._number(call.args, "vy", "right", "y"), LIMIT_VY)
+        vy = clamp(self._number(call.args, "vy", "left", "y"), LIMIT_VY)
         omega = clamp(self._number(call.args, "omega", "turn", "rotate", "w"), LIMIT_OMEGA)
         ms = int(self._number(call.args, "ms", "duration", "duration_ms", default=1000))
         ms = max(1, min(ms, LIMIT_DURATION_MS))
@@ -254,6 +258,14 @@ class ToolBox:
             log.info("remember (no store configured): %s", text)
             return ""
         # Storing embeds text, which is off the conversational hot path by design
-        # (TECH_STACK.md § Ingest). Fire and forget.
-        asyncio.create_task(self.remember(text))
+        # (TECH_STACK.md § Ingest). Fire and forget -- but held, and its failure logged.
+        task = asyncio.create_task(self.remember(text))
+        self._background.add(task)
+        task.add_done_callback(self._remembered)
         return ""
+
+    def _remembered(self, task: asyncio.Task) -> None:
+        self._background.discard(task)
+        if not task.cancelled() and task.exception() is not None:
+            log.error("could not keep what the robot was told to remember: %r",
+                      task.exception())

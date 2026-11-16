@@ -23,10 +23,10 @@ from robot.core.serial_link import SerialLink
 SHORTHAND = {
     "f":    "DRIVE 0.30 0.00 0.00 1000",
     "b":    "DRIVE -0.30 0.00 0.00 1000",
-    "l":    "DRIVE 0.00 -0.30 0.00 1000",
-    "r":    "DRIVE 0.00 0.30 0.00 1000",
-    "cw":   "DRIVE 0.00 0.00 1.00 1000",
-    "ccw":  "DRIVE 0.00 0.00 -1.00 1000",
+    "l":    "DRIVE 0.00 0.30 0.00 1000",      # +vy is LEFT (x forward, y left)
+    "r":    "DRIVE 0.00 -0.30 0.00 1000",
+    "cw":   "DRIVE 0.00 0.00 -1.00 1000",    # +omega is counter-clockwise
+    "ccw":  "DRIVE 0.00 0.00 1.00 1000",
     "stop": "STOP",
     "status": "STATUS",
 }

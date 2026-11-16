@@ -214,13 +214,9 @@ How a direction maps to `vx vy omega` (a unit step, before the 0.2 m/s scaling):
 | `left` / `right` | 0 | +1 / −1 | 0 |
 | `turn_left` / `turn_right` | 0 | 0 | +1.2 / −1.2 |
 
-> ⚠️ **Open: which way is `+vy`?** The firmware's wheel formulas (`firmware/stm32/src/mecanum.c`,
-> from [`serial-protocol.md`](../../../dev-docs/architecture/serial-protocol.md)) make `+vy` a
-> strafe to the **left**, and the Jetson side agrees (`left` is `+vy`). But the same protocol
-> doc, and the prompt in `scripts/serial/verify_wheels.py`, say `DRIVE 0 0.3 0 1000`
-> "strafes right". Resolve it **before** the first wheel check on a real chassis: otherwise a
-> correctly wired robot will look wrong, and a sign that is right may get "fixed". It is
-> recorded in [`PROGRESS.md`](../../../dev-docs/ai/PROGRESS.md) § Known issues.
+> **Settled 2026-11-16:** `+vy` is a strafe to the **left** and `+omega` a turn to the left (x forward, y
+> left, counter-clockwise). The protocol doc, the bring-up script, the hand console and a tool alias that
+> said otherwise were corrected. Not yet checked on a real chassis; see [Motion](../03-firmware/motion.md#settled-which-way-is-vy-and-which-way-is-omega).
 
 ### Three layers keep a model from driving the robot into a wall
 

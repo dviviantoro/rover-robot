@@ -93,7 +93,7 @@ Reading this list is more useful than reading the table above.
 | Not yet proven | Why it matters |
 |---|---|
 | The watchdog on **real hardware**, and on the **ESP32** in particular | The protocol and the 500 ms rule are tested against the reference firmware core and a simulator only. The README for the firmware says nothing else should be trusted until the watchdog test passes on real silicon |
-| Wheel directions on a real chassis | The firmware's signs are defaults, not measurements. There is also an [open question about the sign of `+vy`](voice-pipeline.md#5-acting) |
+| Wheel directions on a real chassis | The firmware's signs are defaults, not measurements. The sign convention (`+vy` is left) is [settled](voice-pipeline.md#5-acting) but unchecked on a chassis |
 | The **systemd** path | The units have never been installed or booted on this board. Four faults were found by reading them against the development path |
 | A **24-hour run** | 24 of 24 failure drills pass and a 45-minute soak (313 turns, no errors) is clean, but the 24-hour soak has not been run |
 | The camera features with a live person | Tested with scripted cameras and photographs |

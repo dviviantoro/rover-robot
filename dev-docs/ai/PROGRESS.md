@@ -5,7 +5,7 @@
 the one that answers *"where are we right now?"* — keep it current in the same change as
 the work (AGENTS.md working rule 5).
 
-> **Last updated: 2026-11-16** · Python tests **1156 passing** (`python -m pytest tests/ -q`; counted 2026-11-11, only docs have changed since)
+> **Last updated: 2026-11-16** · Python tests **1245 passing** (`python -m pytest tests/ -q`, run 2026-11-16)
 > · firmware core **634 checks, 0 failures** (`./firmware/stm32/run_native_tests.sh`; re-run 2026-11-16).
 
 ## How to keep this file honest
@@ -52,6 +52,14 @@ See Known issues #1 about that LLM.
 
 ## 2. Changelog (newest first)
 
+### 2026-11-16 (evening) — Known issue #18 settled
+
+The owner chose to keep the firmware formulas and the Jetson's convention. Corrected `serial-protocol.md` (two examples, and the
+frame is now stated), `verify_wheels.py`, `stm32_console.py` (`l/r/cw/ccw`), `tools.py` (alias `right` to `left`) and `prompt.py`
+(markers-mode prompt: `vy=<left m/s> omega=<turn-left rad/s>`). New `tests/test_conventions.py`; TROUBLESHOOTING entry added.
+**Python tests: 1245 passed** (1156 + 84 handbook + 5 convention), run 2026-11-16. Only the non-default markers-mode prompt changed
+wording for the model; the default JSON reply path is untouched. Handbook pages and `mecanum.svg` updated to match.
+
 ### 2026-11-16 (later) — Handbook: chapters 02 and 06, Indonesian operations, `tests/test_docs.py`
 
 * **06 Dashboard and panel** (`docs/en/06-dashboard/`): the nine pages and the panel, written from the
@@ -59,7 +67,7 @@ See Known issues #1 about that LLM.
 * **02 Hardware** (`docs/en/02-hardware/`): **partial on purpose.** The Jetson side as measured today, what the
   owner reported about the body and what is missing, and the reference wiring from `robot_pins.h`. The real body's
   parts, power and wiring still need the owner (`08-decisions/open-decisions.md` § E).
-* **Indonesian**: `docs/id/07-operations/` (overview, install, running), translated from the English pages.
+* **Indonesian**: `docs/id/07-operations/` (overview, install, running) and, added later the same day, `docs/id/03-firmware/` (overview, watchdog, motion), translated from the English pages.
 * **`tests/test_docs.py`** (84 tests, no new dependency): links and anchors resolve, every SVG is shown, every page is in
   `mkdocs.yml`, every setting in the registry is in the configuration reference, every pin in `robot_pins.h` is in the wiring
   page, fences balance, no secret-looking text. Checked that it fails on a broken link and a broken anchor.
@@ -477,22 +485,10 @@ changed — the reason is given so the next person does not have to rediscover i
 16. *Left —* a **typed** line is filed under whoever the camera sees, not whoever typed it.
 17. *Left —* the robot asks its first question in `CORE_DEFAULT_LANGUAGE`; it cannot know the
     stranger's language before they speak. The welcome follows what they say.
-18. **The sign of `+vy` is documented two ways.** The firmware's wheel formulas
-    (`firmware/stm32/src/mecanum.c`: FL = vx − vy − kω, FR = vx + vy + kω, RL = vx + vy − kω,
-    RR = vx − vy + kω) make `+vy` a strafe to the **left** on an X-roller chassis (FL and RR
-    backward, FR and RL forward), `+ω` a turn to the left, and the Jetson side agrees
-    (`turn.py` `_STEP_VECTORS`: `left` is `+vy`, `turn_left` is `+ω`). But
-    `serial-protocol.md` (the `DRIVE 0.0 0.3 0.0 1000` example and the composite-motion table)
-    and `scripts/serial/verify_wheels.py` both say `+vy` "strafes right". Found while writing
-    `docs/en/04-brain/voice-pipeline.md`; **not changed here because the protocol doc is the
-    contract.** Settle it before the first wheel check on a real chassis, or a correctly wired
-    robot will look wrong and a sign that is right may get "fixed". The firmware test
-    (`test_main.c`, "strafe: FL-,FR+,RL+,RR-") already encodes the formulas.
-    **Widened 2026-11-16:** `scripts/serial/stm32_console.py` (`r` = `vy +0.30`, `cw` = `omega +1.00`) and
-    the `drive` tool's `right` alias for `vy` (`tools.py`) use the same opposite convention, so
-    `+omega` is "clockwise" in the console and `turn_left` in the Jetson. The smallest fix keeps the
-    formulas and the Jetson and corrects those five places. Evidence table:
-    `docs/en/03-firmware/motion.md`.
+18. **~~The sign of `+vy` is documented two ways.~~ Settled 2026-11-16 by the owner:** x forward, y left, omega
+    counter-clockwise (`+vy` strafes left, `+omega` turns left). Six places that said the opposite were corrected
+    (`serial-protocol.md`, `verify_wheels.py`, `stm32_console.py`, the `drive` tool's `right` alias in `tools.py`, and the
+    markers-mode prompt in `prompt.py`); `tests/test_conventions.py` keeps them in step. **Still unchecked on a real chassis.**
 19. **The body is an ESP32; the repository is written for an STM32.** Reported by the owner on
     2026-11-12 (not verified: it was not attached): it speaks this repo's line protocol over a USB
     cable through a USB-UART chip, and drives 4 motors with encoders, the face display, battery
@@ -579,7 +575,7 @@ Add yours here. One row per feature; say *why* and *what it costs* (RAM first �
 | Request `STATUS` on a timer, or let the body volunteer `STAT`; debounce the stall flag | Known issue #20 | 0 | needs a decision |
 | A way to see the watchdog trip on real hardware (LED or pin) and a `--port` mode that reads it | Known issue #21 | 0 | needs the ESP32's wiring |
 | ~~`tests/test_docs.py`~~ | | | **done 2026-11-16** |
-| Settle the `+vy` sign, then fix whichever of `serial-protocol.md` / `verify_wheels.py` / the firmware is wrong | Known issue #18 | 0 | needs a decision |
+| ~~Settle the `+vy` sign~~ | Known issue #18 | 0 | **done 2026-11-16** |
 | ESP32 body firmware in the repo (or a pointer to where it lives), and a udev rule / `check_board.sh` that fits a USB-UART chip | Known issue #19 | 0 | needs the owner |
 | Rename STM32 to "body controller" in the code, scripts and constraints | the robot's controller is an ESP32 | 0 | **needs sign-off**: touches AGENTS.md constraints 6-7 |
 

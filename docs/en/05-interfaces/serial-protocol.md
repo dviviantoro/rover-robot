@@ -42,9 +42,8 @@ STOP
 WHEEL 0 5.0 1000           # bring-up: front-left only, 5 rad/s for 1 s
 ```
 
-> ⚠️ **The sign of `vy` and of `omega` is an open question.** The contract's own example says
-> `DRIVE 0.0 0.3 0.0 1000` "strafes right"; the formulas and the Jetson mean left. See
-> [Motion](../03-firmware/motion.md#open-question-which-way-is-vy-and-which-way-is-omega) (Known issue #18).
+> **Frame (settled 2026-11-16):** x forward, y left, omega counter-clockwise. `DRIVE 0.0 0.3 0.0 1000`
+> strafes **left**. See [Motion](../03-firmware/motion.md#settled-which-way-is-vy-and-which-way-is-omega) (Known issue #18).
 
 ## Body to Jetson: the answers
 

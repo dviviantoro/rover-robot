@@ -46,7 +46,7 @@ TOOL_RULE = """You have a body and can act while you speak. To act, write a mark
 inline in your reply. The markers are removed before your words are spoken aloud, so
 write the sentence as if the action is simply happening.
 
-  [do:drive vx=<forward m/s> vy=<right m/s> omega=<turn rad/s> ms=<duration>]
+  [do:drive vx=<forward m/s> vy=<left m/s> omega=<turn-left rad/s> ms=<duration>]
   [do:stop]
   [do:face <happy|thinking|listening|speaking|sad|neutral>]
   [do:gesture <wave|point|home|nod>]
@@ -205,6 +205,8 @@ def build_system_prompt(
     context: list[str] | None = None,
     reply_format: str = "markers",
     hint_source: str | None = None,
+    scene: str | None = None,
+    memory: str | None = None,
 ) -> str:
     """Persona + the standing language rule + the declaration instruction.
 
@@ -246,6 +248,17 @@ def build_system_prompt(
         parts.append(TOOL_RULE)
     if hint and hint in LANGUAGES:
         parts.append(language_line(hint, hint_source))
+    if memory:
+        # Who this is and what was said before. It changes when the person does, not turn
+        # to turn, so it sits after the text that never changes and before the scene line,
+        # which changes constantly -- see below.
+        parts.append(memory)
+    if scene:
+        # LAST, after everything that is the same on every turn. llama.cpp reuses the
+        # longest unchanged prefix of the previous prompt, and the scene is the one line
+        # here that changes between turns -- anywhere earlier it would cost the persona's
+        # whole cached prefix each time.
+        parts.append(scene)
     if reply_format == "json":
         # No declaration rule: `language` is a field of the object, constrained to the
         # three the robot speaks. Asking for `[lang:xx]` as well would put a tag inside

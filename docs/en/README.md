@@ -70,7 +70,7 @@ claim is proven. You will see these badges next to hardware and behaviour:
 | Languages | English, Bahasa Indonesia, Arabic, chosen per sentence from the words spoken |
 | Network | Nothing leaves the robot. The dashboard is on your own network only |
 | Speed ✅ | From the end of your speech to the first spoken word: **median 2181 ms, best 1554 ms** (target 1500 ms). A short "okay, one moment" can start in about **123 ms** |
-| Tests | 1156 Python tests, 634 firmware-core checks, all passing on 2026-11-11 |
+| Tests | 1245 Python tests (including 89 about the handbook and conventions), 634 firmware-core checks, all passing on 2026-11-16 |
 | Processes | 9: `robot-llm`, `robot-whisper`, `robot-asr`, `robot-tts`, `robot-core`, `robot-embed`, `robot-vision`, `robot-ui`, `robot-face` |
 
 Numbers come from [`PROGRESS.md`](../../dev-docs/ai/PROGRESS.md) and
