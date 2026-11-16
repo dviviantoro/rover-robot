@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1340 735" width="1340" height="735" font-family="DejaVu Sans, Verdana, Arial, Helvetica, sans-serif" role="img" aria-labelledby="t d">
+<title id="t">System context of the robot</title>
+<desc id="d">A person talks to a robot through a USB microphone and speaker and is seen by a camera. Inside the robot a Jetson Orin Nano runs nine services; it sends text commands over a USB serial cable to an ESP32 microcontroller that drives the motors, face display and sensors. A browser on the same network opens the dashboard.</desc>
+<defs>
+<marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#475569"/></marker>
+<marker id="arr-rev" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M10 0 L0 5 L10 10 z" fill="#475569"/></marker>
+</defs>
+<rect x="0.5" y="0.5" width="1339" height="734" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
+<text x="30" y="40" font-size="22" font-weight="700" text-anchor="start" fill="#0f172a">System context: who and what the robot talks to</text>
+<text x="30" y="64" font-size="13" font-weight="400" text-anchor="start" fill="#475569">Solid outline = documented in this repository.  Dashed outline = unconfirmed, or not covered by this repository's protocol or code.</text>
+<rect x="565" y="84" width="330" height="62" rx="10" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
+<text x="730.0" y="108" font-size="15" font-weight="700" text-anchor="middle" fill="#064e3b">Browser on the same network</text>
+<text x="730.0" y="127" font-size="12" font-weight="400" text-anchor="middle" fill="#475569">phone or laptop opens the dashboard</text>
+<line x1="730" y1="146" x2="730" y2="176" stroke="#475569" stroke-width="2.2" marker-end="url(#arr)" marker-start="url(#arr-rev)"/>
+<rect x="742.0" y="150.6" width="212.0" height="18.7" rx="9.3" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="848" y="164.96" font-size="11" font-weight="400" text-anchor="middle" fill="#475569">Wi-Fi / LAN, HTTP :8081, login</text>
+<rect x="30" y="300" width="170" height="170" rx="10" fill="#f1f5f9" stroke="#64748b" stroke-width="2"/>
+<circle cx="115" cy="338" r="15" fill="#cbd5e1" stroke="#64748b" stroke-width="1.5"/>
+<path d="M85 392 q0 -30 30 -30 q30 0 30 30 z" fill="#cbd5e1" stroke="#64748b" stroke-width="1.5"/>
+<text x="115" y="418" font-size="16" font-weight="700" text-anchor="middle" fill="#0f172a">A person</text>
+<text x="115" y="438" font-size="12" font-weight="400" text-anchor="middle" fill="#475569">speaks, listens,</text>
+<text x="115" y="454" font-size="12" font-weight="400" text-anchor="middle" fill="#475569">is seen</text>
+<rect x="275" y="196" width="230" height="92" rx="10" fill="#f1f5f9" stroke="#64748b" stroke-width="2"/>
+<text x="390.0" y="220" font-size="15" font-weight="700" text-anchor="middle" fill="#1e293b">USB sound card</text>
+<text x="390.0" y="239" font-size="12" font-weight="400" text-anchor="middle" fill="#475569">microphone in</text>
+<text x="390.0" y="255" font-size="12" font-weight="400" text-anchor="middle" fill="#475569">speaker out</text>
+<rect x="275" y="346" width="230" height="74" rx="10" fill="#f1f5f9" stroke="#64748b" stroke-width="2"/>
+<text x="390.0" y="370" font-size="15" font-weight="700" text-anchor="middle" fill="#1e293b">CSI camera</text>
+<text x="390.0" y="389" font-size="12" font-weight="400" text-anchor="middle" fill="#475569">IMX219, on the Jetson</text>
+<rect x="275" y="470" width="230" height="74" rx="10" fill="#f1f5f9" stroke="#64748b" stroke-width="2"/>
+<text x="390.0" y="494" font-size="15" font-weight="700" text-anchor="middle" fill="#1e293b">Screen (optional)</text>
+<text x="390.0" y="513" font-size="12" font-weight="400" text-anchor="middle" fill="#475569">HDMI / DisplayPort panel</text>
+<line x1="200" y1="322" x2="275" y2="250" stroke="#475569" stroke-width="2.2" marker-end="url(#arr)"/>
+<rect x="205.2" y="265.6" width="53.6" height="18.7" rx="9.3" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="232" y="279.96" font-size="11" font-weight="400" text-anchor="middle" fill="#475569">speech</text>
+<line x1="275" y1="272" x2="200" y2="346" stroke="#475569" stroke-width="2.2" marker-end="url(#arr)"/>
+<rect x="227.5" y="311.6" width="47.0" height="18.7" rx="9.3" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="251" y="325.96" font-size="11" font-weight="400" text-anchor="middle" fill="#475569">voice</text>
+<line x1="200" y1="392" x2="275" y2="383" stroke="#475569" stroke-width="2.2" marker-end="url(#arr)"/>
+<rect x="217.8" y="391.6" width="40.4" height="18.7" rx="9.3" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="238" y="405.96" font-size="11" font-weight="400" text-anchor="middle" fill="#475569">seen</text>
+<line x1="275" y1="507" x2="200" y2="440" stroke="#475569" stroke-width="2.2" marker-end="url(#arr)"/>
+<rect x="214.5" y="479.6" width="47.0" height="18.7" rx="9.3" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="238" y="493.96" font-size="11" font-weight="400" text-anchor="middle" fill="#475569">reads</text>
+<rect x="575" y="176" width="330" height="486" rx="12" fill="#eff6ff" stroke="#2563eb" stroke-width="2.5"/>
+<text x="590" y="204" font-size="16" font-weight="700" text-anchor="start" fill="#1e3a8a">Brain: Jetson Orin Nano 8 GB</text>
+<text x="590" y="223" font-size="12" font-weight="400" text-anchor="start" fill="#475569">nine supervised services, all local, no cloud</text>
+<text x="590" y="253" font-size="11" font-weight="700" text-anchor="start" fill="#64748b" letter-spacing="1">LISTEN</text>
+<rect x="590" y="260" width="300" height="28" rx="7" fill="#eff6ff" stroke="#2563eb" stroke-width="1.6"/>
+<text x="600" y="278.68" font-size="13" fill="#1e3a8a"><tspan font-weight="700">robot-asr</tspan><tspan fill="#475569" dx="5">— microphone, voice detector</tspan></text>
+<rect x="590" y="294" width="300" height="28" rx="7" fill="#eff6ff" stroke="#2563eb" stroke-width="1.6"/>
+<text x="600" y="312.68" font-size="13" fill="#1e3a8a"><tspan font-weight="700">robot-whisper</tspan><tspan fill="#475569" dx="5">— speech to text (GPU)</tspan></text>
+<text x="590" y="345" font-size="11" font-weight="700" text-anchor="start" fill="#64748b" letter-spacing="1">THINK</text>
+<rect x="590" y="352" width="300" height="28" rx="7" fill="#eff6ff" stroke="#2563eb" stroke-width="1.6"/>
+<text x="600" y="370.68" font-size="13" fill="#1e3a8a"><tspan font-weight="700">robot-core</tspan><tspan fill="#475569" dx="5">— the orchestrator</tspan></text>
+<rect x="590" y="386" width="300" height="28" rx="7" fill="#eff6ff" stroke="#2563eb" stroke-width="1.6"/>
+<text x="600" y="404.68" font-size="13" fill="#1e3a8a"><tspan font-weight="700">robot-llm</tspan><tspan fill="#475569" dx="5">— the language model (GPU)</tspan></text>
+<rect x="590" y="420" width="300" height="28" rx="7" fill="#eff6ff" stroke="#2563eb" stroke-width="1.6"/>
+<text x="600" y="438.68" font-size="13" fill="#1e3a8a"><tspan font-weight="700">robot-embed</tspan><tspan fill="#475569" dx="5">— embeddings, on demand</tspan></text>
+<text x="590" y="471" font-size="11" font-weight="700" text-anchor="start" fill="#64748b" letter-spacing="1">SPEAK</text>
+<rect x="590" y="478" width="300" height="28" rx="7" fill="#eff6ff" stroke="#2563eb" stroke-width="1.6"/>
+<text x="600" y="496.68" font-size="13" fill="#1e3a8a"><tspan font-weight="700">robot-tts</tspan><tspan fill="#475569" dx="5">— text to voice (GPU)</tspan></text>
+<text x="590" y="529" font-size="11" font-weight="700" text-anchor="start" fill="#64748b" letter-spacing="1">SEE</text>
+<rect x="590" y="536" width="300" height="28" rx="7" fill="#eff6ff" stroke="#2563eb" stroke-width="1.6"/>
+<text x="600" y="554.68" font-size="13" fill="#1e3a8a"><tspan font-weight="700">robot-vision</tspan><tspan fill="#475569" dx="5">— objects and faces (CPU)</tspan></text>
+<text x="590" y="587" font-size="11" font-weight="700" text-anchor="start" fill="#64748b" letter-spacing="1">SCREENS (optional)</text>
+<rect x="590" y="594" width="300" height="28" rx="7" fill="#eff6ff" stroke="#2563eb" stroke-width="1.6"/>
+<text x="600" y="612.68" font-size="13" fill="#1e3a8a"><tspan font-weight="700">robot-ui</tspan><tspan fill="#475569" dx="5">— web dashboard</tspan></text>
+<rect x="590" y="628" width="300" height="28" rx="7" fill="#eff6ff" stroke="#2563eb" stroke-width="1.6"/>
+<text x="600" y="646.68" font-size="13" fill="#1e3a8a"><tspan font-weight="700">robot-face</tspan><tspan fill="#475569" dx="5">— panel on the robot</tspan></text>
+<line x1="505" y1="244" x2="575" y2="244" stroke="#475569" stroke-width="2.2" marker-end="url(#arr)" marker-start="url(#arr-rev)"/>
+<rect x="523.1" y="215.6" width="33.8" height="18.7" rx="9.3" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="540" y="229.96" font-size="11" font-weight="400" text-anchor="middle" fill="#475569">USB</text>
+<line x1="505" y1="383" x2="575" y2="383" stroke="#475569" stroke-width="2.2" marker-end="url(#arr)"/>
+<rect x="523.1" y="354.6" width="33.8" height="18.7" rx="9.3" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="540" y="368.96" font-size="11" font-weight="400" text-anchor="middle" fill="#475569">CSI</text>
+<line x1="575" y1="507" x2="505" y2="507" stroke="#475569" stroke-width="2.2" marker-end="url(#arr)"/>
+<rect x="519.8" y="478.6" width="40.4" height="18.7" rx="9.3" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="540" y="492.96" font-size="11" font-weight="400" text-anchor="middle" fill="#475569">HDMI</text>
+<rect x="1050" y="176" width="260" height="486" rx="12" fill="#fffbeb" stroke="#d97706" stroke-width="2.5"/>
+<text x="1065" y="204" font-size="16" font-weight="700" text-anchor="start" fill="#78350f">Body: ESP32</text>
+<text x="1065" y="223" font-size="12" font-weight="400" text-anchor="start" fill="#475569">microcontroller: decides HOW to</text>
+<text x="1065" y="239" font-size="12" font-weight="400" text-anchor="start" fill="#475569">move and keeps the robot safe</text>
+<rect x="1065" y="260" width="230" height="46" rx="7" fill="#fffbeb" stroke="#d97706" stroke-width="1.6"/>
+<text x="1077" y="280" font-size="13" font-weight="700" text-anchor="start" fill="#78350f">4 DC motors + encoders</text>
+<text x="1077" y="297" font-size="11" font-weight="400" text-anchor="start" fill="#475569">mecanum wheels</text>
+<rect x="1065" y="314" width="230" height="46" rx="7" fill="#fffbeb" stroke="#d97706" stroke-width="1.6"/>
+<text x="1077" y="334" font-size="13" font-weight="700" text-anchor="start" fill="#78350f">Face display</text>
+<text x="1077" y="351" font-size="11" font-weight="400" text-anchor="start" fill="#475569">expressions</text>
+<rect x="1065" y="368" width="230" height="34" rx="7" fill="#fffbeb" stroke="#d97706" stroke-width="1.6"/>
+<text x="1077" y="388" font-size="13" font-weight="700" text-anchor="start" fill="#78350f">Battery voltage, sensors</text>
+<rect x="1065" y="416" width="230" height="204" rx="8" fill="#f1f5f9" stroke="#64748b" stroke-width="1.6" stroke-dasharray="7 5"/>
+<text x="1077" y="438" font-size="12" font-weight="700" text-anchor="start" fill="#475569">Unconfirmed, or not covered</text>
+<text x="1077" y="454" font-size="12" font-weight="700" text-anchor="start" fill="#475569">by this repository's code</text>
+<rect x="1077" y="468" width="206" height="28" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="1.4" stroke-dasharray="7 5"/>
+<text x="1087" y="487" font-size="12.5" font-weight="400" text-anchor="start" fill="#475569">360-degree lidar *</text>
+<rect x="1077" y="502" width="206" height="28" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="1.4" stroke-dasharray="7 5"/>
+<text x="1087" y="521" font-size="12.5" font-weight="400" text-anchor="start" fill="#475569">SPI camera *</text>
+<rect x="1077" y="536" width="206" height="28" rx="6" fill="#ffffff" stroke="#94a3b8" stroke-width="1.4" stroke-dasharray="7 5"/>
+<text x="1087" y="555" font-size="12.5" font-weight="400" text-anchor="start" fill="#475569">Servos for HAND gestures</text>
+<text x="1077" y="582" font-size="11" font-weight="400" text-anchor="start" fill="#475569" font-style="italic">* reported by the owner; no code or</text>
+<text x="1077" y="597" font-size="11" font-weight="400" text-anchor="start" fill="#475569" font-style="italic">protocol for it exists here. HAND is</text>
+<text x="1077" y="612" font-size="11" font-weight="400" text-anchor="start" fill="#475569" font-style="italic">in the protocol; servos not listed.</text>
+<line x1="905" y1="330" x2="1050" y2="330" stroke="#334155" stroke-width="3" marker-end="url(#arr)" marker-start="url(#arr-rev)"/>
+<text x="977.5" y="311" font-size="13" font-weight="700" text-anchor="middle" fill="#0f172a">USB cable</text>
+<rect x="913" y="350" width="129" height="168" rx="8" fill="#f1f5f9" stroke="#64748b" stroke-width="1.2"/>
+<text x="977.5" y="371" font-size="11.5" font-weight="400" text-anchor="middle" fill="#0f172a">text lines:</text>
+<text x="977.5" y="388" font-size="11.5" font-weight="400" text-anchor="middle" fill="#0f172a">DRIVE  STOP</text>
+<text x="977.5" y="405" font-size="11.5" font-weight="400" text-anchor="middle" fill="#0f172a">FACE  HAND</text>
+<text x="977.5" y="422" font-size="11.5" font-weight="400" text-anchor="middle" fill="#0f172a">PING / 200 ms</text>
+<text x="977.5" y="439" font-size="11.5" font-weight="400" text-anchor="middle" fill="#0f172a">JSON per phase</text>
+<text x="977.5" y="456" font-size="11.5" font-weight="400" text-anchor="middle" fill="#0f172a"></text>
+<text x="977.5" y="473" font-size="11.5" font-weight="400" text-anchor="middle" fill="#0f172a">silent 500 ms:</text>
+<text x="977.5" y="490" font-size="11.5" font-weight="400" text-anchor="middle" fill="#0f172a">motors off</text>
+<rect x="30" y="685" width="18" height="18" rx="4" fill="#eff6ff" stroke="#2563eb" stroke-width="1.6"/>
+<text x="56" y="699" font-size="12.5" font-weight="400" text-anchor="start" fill="#475569">Jetson software</text>
+<rect x="198.0" y="685" width="18" height="18" rx="4" fill="#fffbeb" stroke="#d97706" stroke-width="1.6"/>
+<text x="224.0" y="699" font-size="12.5" font-weight="400" text-anchor="start" fill="#475569">Body (ESP32)</text>
+<rect x="343.2" y="685" width="18" height="18" rx="4" fill="#ecfdf5" stroke="#059669" stroke-width="1.6"/>
+<text x="369.2" y="699" font-size="12.5" font-weight="400" text-anchor="start" fill="#475569">People-facing</text>
+<rect x="496.0" y="685" width="18" height="18" rx="4" fill="#f1f5f9" stroke="#64748b" stroke-width="1.6"/>
+<text x="522.0" y="699" font-size="12.5" font-weight="400" text-anchor="start" fill="#475569">People and devices</text>
+<rect x="686.8" y="685" width="18" height="18" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5"/>
+<text x="712.8" y="699" font-size="12.5" font-weight="400" text-anchor="start" fill="#475569">Dashed = unconfirmed or not covered here</text>
+</svg>

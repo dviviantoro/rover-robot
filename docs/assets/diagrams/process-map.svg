@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 860" width="1200" height="860" font-family="DejaVu Sans, Verdana, Arial, Helvetica, sans-serif" role="img" aria-labelledby="t d">
+<title id="t">Process map of the Jetson side</title>
+<desc id="d">robot-core sits in the middle and talks to every other process: robot-asr and robot-tts and robot-vision over unix sockets, robot-llm and robot-embed over HTTP, the microcontroller over a USB serial cable, and robot-ui and robot-face over a local WebSocket on port 8090. robot-asr sends audio to robot-whisper over HTTP on port 8083.</desc>
+<defs>
+<marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#475569"/></marker>
+<marker id="arr-rev" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M10 0 L0 5 L10 10 z" fill="#475569"/></marker>
+</defs>
+<rect x="0.5" y="0.5" width="1199" height="859" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
+<text x="30" y="40" font-size="22" font-weight="700" text-anchor="start" fill="#0f172a">Process map: who talks to whom, and over what</text>
+<text x="30" y="64" font-size="13" font-weight="400" text-anchor="start" fill="#475569">robot-core is the hub, and the only process that talks to the body. Every arrow is a local connection.</text>
+<rect x="40" y="150" width="220" height="78" rx="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+<text x="150.0" y="174" font-size="16" font-weight="700" text-anchor="middle" fill="#1e3a8a">robot-whisper</text>
+<text x="150.0" y="193" font-size="12" font-weight="400" text-anchor="middle" fill="#475569">whisper.cpp server :8083</text>
+<text x="150.0" y="209" font-size="12" font-weight="400" text-anchor="middle" fill="#475569">speech to text, on the GPU</text>
+<rect x="40" y="310" width="220" height="78" rx="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+<text x="150.0" y="334" font-size="16" font-weight="700" text-anchor="middle" fill="#1e3a8a">robot-asr</text>
+<text x="150.0" y="353" font-size="12" font-weight="400" text-anchor="middle" fill="#475569">USB mic, voice detector,</text>
+<text x="150.0" y="369" font-size="12" font-weight="400" text-anchor="middle" fill="#475569">noise gates</text>
+<rect x="40" y="420" width="220" height="78" rx="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+<text x="150.0" y="444" font-size="16" font-weight="700" text-anchor="middle" fill="#1e3a8a">robot-tts</text>
+<text x="150.0" y="463" font-size="12" font-weight="400" text-anchor="middle" fill="#475569">Supertonic voice, on the GPU</text>
+<text x="150.0" y="479" font-size="12" font-weight="400" text-anchor="middle" fill="#475569">plays through the USB speaker</text>
+<rect x="40" y="540" width="220" height="78" rx="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+<text x="150.0" y="564" font-size="16" font-weight="700" text-anchor="middle" fill="#1e3a8a">robot-vision</text>
+<text x="150.0" y="583" font-size="12" font-weight="400" text-anchor="middle" fill="#475569">CSI camera: objects + faces</text>
+<text x="150.0" y="599" font-size="12" font-weight="400" text-anchor="middle" fill="#475569">on the CPU (optional)</text>
+<rect x="490" y="300" width="230" height="280" rx="14" fill="#dbeafe" stroke="#2563eb" stroke-width="3"/>
+<text x="605.0" y="334" font-size="20" font-weight="700" text-anchor="middle" fill="#1e3a8a">robot-core</text>
+<text x="605.0" y="356" font-size="12.5" font-weight="400" text-anchor="middle" fill="#475569">the orchestrator (asyncio)</text>
+<text x="605.0" y="392" font-size="12" font-weight="400" text-anchor="middle" fill="#1e3a8a">turn flow and barge-in</text>
+<text x="605.0" y="411" font-size="12" font-weight="400" text-anchor="middle" fill="#1e3a8a">reply parsing, face phases</text>
+<text x="605.0" y="430" font-size="12" font-weight="400" text-anchor="middle" fill="#1e3a8a">knowledge + people</text>
+<text x="605.0" y="449" font-size="12" font-weight="400" text-anchor="middle" fill="#1e3a8a">keepalive, health, settings</text>
+<text x="605.0" y="468" font-size="12" font-weight="400" text-anchor="middle" fill="#1e3a8a">serial link + heartbeat</text>
+<path d="M495 218 v24 a50.0 6 0 0 0 100 0 v-24 a50.0 6 0 0 0 -100 0 a50.0 6 0 0 0 100 0" fill="#f1f5f9" stroke="#64748b" stroke-width="1.5"/>
+<text x="545.0" y="237.0" font-size="11" font-weight="400" text-anchor="middle" fill="#1e293b">knowledge.db</text>
+<path d="M607 218 v24 a50.0 6 0 0 0 100 0 v-24 a50.0 6 0 0 0 -100 0 a50.0 6 0 0 0 100 0" fill="#f1f5f9" stroke="#64748b" stroke-width="1.5"/>
+<text x="657.0" y="237.0" font-size="11" font-weight="400" text-anchor="middle" fill="#1e293b">people.db</text>
+<text x="605.0" y="196" font-size="11" font-weight="400" text-anchor="middle" fill="#475569">files in run/</text>
+<line x1="545" y1="248" x2="545" y2="300" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="6 5" marker-end="url(#arr)"/>
+<line x1="657" y1="248" x2="657" y2="300" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="6 5" marker-end="url(#arr)"/>
+<path d="M551 606 v24 a55.0 6 0 0 0 110 0 v-24 a55.0 6 0 0 0 -110 0 a55.0 6 0 0 0 110 0" fill="#f1f5f9" stroke="#64748b" stroke-width="1.5"/>
+<text x="606.0" y="625.0" font-size="11" font-weight="400" text-anchor="middle" fill="#1e293b">settings.json</text>
+<line x1="606" y1="600" x2="606" y2="580" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="6 5" marker-end="url(#arr)"/>
+<path d="M95 656 v24 a55.0 6 0 0 0 110 0 v-24 a55.0 6 0 0 0 -110 0 a55.0 6 0 0 0 110 0" fill="#f1f5f9" stroke="#64748b" stroke-width="1.5"/>
+<text x="150.0" y="675.0" font-size="11" font-weight="400" text-anchor="middle" fill="#1e293b">faces.db</text>
+<line x1="150" y1="650" x2="150" y2="618" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="6 5" marker-end="url(#arr)"/>
+<rect x="940" y="190" width="220" height="78" rx="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+<text x="1050.0" y="214" font-size="16" font-weight="700" text-anchor="middle" fill="#1e3a8a">robot-embed</text>
+<text x="1050.0" y="233" font-size="12" font-weight="400" text-anchor="middle" fill="#475569">llama.cpp --embeddings :8082</text>
+<text x="1050.0" y="249" font-size="12" font-weight="400" text-anchor="middle" fill="#475569">only while ingesting</text>
+<rect x="940" y="310" width="220" height="78" rx="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+<text x="1050.0" y="334" font-size="16" font-weight="700" text-anchor="middle" fill="#1e3a8a">robot-llm</text>
+<text x="1050.0" y="353" font-size="12" font-weight="400" text-anchor="middle" fill="#475569">llama.cpp server :8080</text>
+<text x="1050.0" y="369" font-size="12" font-weight="400" text-anchor="middle" fill="#475569">the language model, GPU</text>
+<rect x="940" y="440" width="220" height="78" rx="10" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+<text x="1050.0" y="464" font-size="16" font-weight="700" text-anchor="middle" fill="#78350f">Body (ESP32)</text>
+<text x="1050.0" y="483" font-size="12" font-weight="400" text-anchor="middle" fill="#475569">USB serial cable</text>
+<text x="1050.0" y="499" font-size="12" font-weight="400" text-anchor="middle" fill="#475569">motors, face, sensors</text>
+<rect x="330" y="720" width="220" height="78" rx="10" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
+<text x="440.0" y="744" font-size="16" font-weight="700" text-anchor="middle" fill="#064e3b">robot-ui</text>
+<text x="440.0" y="763" font-size="12" font-weight="400" text-anchor="middle" fill="#475569">web dashboard :8081</text>
+<text x="440.0" y="779" font-size="12" font-weight="400" text-anchor="middle" fill="#475569">NiceGUI, optional</text>
+<rect x="650" y="720" width="220" height="78" rx="10" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
+<text x="760.0" y="744" font-size="16" font-weight="700" text-anchor="middle" fill="#064e3b">robot-face</text>
+<text x="760.0" y="763" font-size="12" font-weight="400" text-anchor="middle" fill="#475569">panel on the robot's screen</text>
+<text x="760.0" y="779" font-size="12" font-weight="400" text-anchor="middle" fill="#475569">Rust + Slint, optional</text>
+<rect x="40" y="720" width="220" height="78" rx="10" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
+<text x="150.0" y="744" font-size="16" font-weight="700" text-anchor="middle" fill="#064e3b">Browser</text>
+<text x="150.0" y="763" font-size="12" font-weight="400" text-anchor="middle" fill="#475569">any device on the network</text>
+<text x="150.0" y="779" font-size="12" font-weight="400" text-anchor="middle" fill="#475569">HTTP :8081, login</text>
+<rect x="940" y="720" width="220" height="78" rx="10" fill="#f1f5f9" stroke="#64748b" stroke-width="2"/>
+<text x="1050.0" y="744" font-size="16" font-weight="700" text-anchor="middle" fill="#1e293b">Screen</text>
+<text x="1050.0" y="763" font-size="12" font-weight="400" text-anchor="middle" fill="#475569">HDMI / DisplayPort</text>
+<text x="1050.0" y="779" font-size="12" font-weight="400" text-anchor="middle" fill="#475569">drawn straight to DRM/KMS</text>
+<line x1="150.0" y1="310" x2="150.0" y2="228" stroke="#475569" stroke-width="2.2" marker-end="url(#arr)"/>
+<rect x="180.0" y="269.6" width="80.0" height="18.7" rx="9.3" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="220.0" y="283.96" font-size="11" font-weight="400" text-anchor="middle" fill="#475569">HTTP :8083</text>
+<text x="144.0" y="272" font-size="11" font-weight="400" text-anchor="end" fill="#475569">audio</text>
+<text x="156.0" y="276" font-size="11" font-weight="400" text-anchor="start" fill="#0f172a"></text>
+<line x1="260" y1="349" x2="490" y2="349" stroke="#475569" stroke-width="2.2" marker-end="url(#arr)" marker-start="url(#arr-rev)"/>
+<rect x="318.4" y="319.6" width="93.2" height="18.7" rx="9.3" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="365" y="333.96" font-size="11" font-weight="400" text-anchor="middle" fill="#475569">run/asr.sock</text>
+<line x1="260" y1="459" x2="490" y2="459" stroke="#475569" stroke-width="2.2" marker-end="url(#arr)" marker-start="url(#arr-rev)"/>
+<rect x="318.4" y="429.6" width="93.2" height="18.7" rx="9.3" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="365" y="443.96" font-size="11" font-weight="400" text-anchor="middle" fill="#475569">run/tts.sock</text>
+<line x1="260" y1="579" x2="490" y2="540" stroke="#475569" stroke-width="2.2" marker-end="url(#arr)" marker-start="url(#arr-rev)"/>
+<rect x="308.5" y="545.5" width="113.0" height="18.7" rx="9.3" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="365" y="559.96" font-size="11" font-weight="400" text-anchor="middle" fill="#475569">run/vision.sock</text>
+<line x1="720" y1="349" x2="940" y2="349" stroke="#475569" stroke-width="2.2" marker-end="url(#arr)"/>
+<rect x="790.0" y="319.6" width="80.0" height="18.7" rx="9.3" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="830" y="333.96" font-size="11" font-weight="400" text-anchor="middle" fill="#475569">HTTP :8080</text>
+<line x1="720" y1="330" x2="940" y2="229" stroke="#475569" stroke-width="2.2" marker-end="url(#arr)"/>
+<rect x="795.0" y="251.6" width="80.0" height="18.7" rx="9.3" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="835" y="265.96" font-size="11" font-weight="400" text-anchor="middle" fill="#475569">HTTP :8082</text>
+<line x1="720" y1="479" x2="940" y2="479" stroke="#334155" stroke-width="3.4" marker-end="url(#arr)" marker-start="url(#arr-rev)"/>
+<rect x="790.0" y="449.6" width="80.0" height="18.7" rx="9.3" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="830" y="463.96" font-size="11" font-weight="400" text-anchor="middle" fill="#475569">USB serial</text>
+<line x1="550" y1="580" x2="440" y2="720" stroke="#475569" stroke-width="2.2" marker-end="url(#arr)" marker-start="url(#arr-rev)"/>
+<line x1="660" y1="580" x2="760" y2="720" stroke="#475569" stroke-width="2.2" marker-end="url(#arr)" marker-start="url(#arr-rev)"/>
+<rect x="388.5" y="679.5" width="113.0" height="18.7" rx="9.3" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="445" y="693.96" font-size="11" font-weight="400" text-anchor="middle" fill="#475569">WebSocket :8090</text>
+<rect x="688.5" y="679.5" width="113.0" height="18.7" rx="9.3" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="745" y="693.96" font-size="11" font-weight="400" text-anchor="middle" fill="#475569">WebSocket :8090</text>
+<line x1="330" y1="759" x2="260" y2="759" stroke="#475569" stroke-width="2.2" marker-end="url(#arr)" marker-start="url(#arr-rev)"/>
+<rect x="264.8" y="729.5" width="40.4" height="18.7" rx="9.3" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="285" y="743.96" font-size="11" font-weight="400" text-anchor="middle" fill="#475569">HTTP</text>
+<line x1="870" y1="759" x2="940" y2="759" stroke="#475569" stroke-width="2.2" marker-end="url(#arr)"/>
+<rect x="893.1" y="729.5" width="33.8" height="18.7" rx="9.3" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+<text x="910" y="743.96" font-size="11" font-weight="400" text-anchor="middle" fill="#475569">DRM</text>
+<text x="30" y="828" font-size="12" font-weight="400" text-anchor="start" fill="#475569">Start order (scripts/run_stack.sh): robot-llm, [robot-embed], robot-whisper, robot-tts, robot-vision, robot-core, robot-asr, then robot-ui / robot-face.</text>
+<text x="30" y="846" font-size="12" font-weight="400" text-anchor="start" fill="#475569">Under systemd the same nine are units in deploy/systemd/, grouped by robot.target. robot-ui and robot-face can die without the robot noticing.</text>
+</svg>

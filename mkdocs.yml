@@ -1,0 +1,125 @@
+# Builds the illustrated handbook in docs/ into a static site.
+#
+#   .cache/docs-venv/bin/mkdocs build     # the site lands in .cache/handbook-site (gitignored)
+#   .cache/docs-venv/bin/mkdocs serve     # a live preview on 127.0.0.1:8000
+#
+# BUILD-TIME ONLY. MkDocs and its theme are never installed on the robot's runtime path and
+# nothing here is imported by a service (AGENTS.md constraint 4 concerns the runtime; this is a
+# separate tooling venv). See requirements-docs.txt and docs/en/08-decisions.
+#
+# The sources stay plain Markdown that reads fine on GitHub; this file only adds navigation,
+# search and Mermaid rendering. Links that leave docs/ (to dev-docs/, firmware/, AGENTS.md ...)
+# are rewritten to the repository on GitHub by scripts/docs/mkdocs_hooks.py.
+
+site_name: Robot handbook
+site_description: An offline conversational robot. A Jetson is the brain, a microcontroller is the body.
+repo_url: https://github.com/dviviantoro/rover-robot
+repo_name: rover-robot
+edit_uri: edit/master/docs/
+
+docs_dir: docs
+site_dir: .cache/handbook-site
+strict: true
+
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
+hooks:
+  - scripts/docs/mkdocs_hooks.py
+
+extra:
+  repo_branch: master
+
+theme:
+  name: material
+  language: en
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - toc.follow
+    - content.code.copy
+    - search.suggest
+    - search.highlight
+
+plugins:
+  - search
+
+markdown_extensions:
+  - tables
+  - attr_list
+  - md_in_html
+  - admonition
+  - toc:
+      permalink: true
+      # GitHub-style anchors, so a link that works on GitHub works here.
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+nav:
+  - Home: README.md
+  - English:
+      - Front door: en/README.md
+      - 1 Overview:
+          - en/01-overview/what-it-is.md
+          - en/01-overview/one-turn.md
+          - en/01-overview/glossary.md
+      - 3 Firmware:
+          - en/03-firmware/README.md
+          - en/03-firmware/watchdog.md
+          - en/03-firmware/motion.md
+          - en/03-firmware/try-it-without-a-board.md
+          - en/03-firmware/esp32-conformance.md
+      - 4 Brain:
+          - en/04-brain/README.md
+          - en/04-brain/voice-pipeline.md
+          - en/04-brain/models-and-memory.md
+          - en/04-brain/knowledge.md
+          - en/04-brain/vision-and-people.md
+          - en/04-brain/reliability.md
+      - 5 Interfaces:
+          - en/05-interfaces/README.md
+          - en/05-interfaces/serial-protocol.md
+          - en/05-interfaces/reply-json.md
+          - en/05-interfaces/websocket.md
+          - en/05-interfaces/configuration.md
+      - 7 Operations:
+          - en/07-operations/README.md
+          - en/07-operations/install.md
+          - en/07-operations/running.md
+          - en/07-operations/systemd.md
+          - en/07-operations/troubleshooting-index.md
+      - 8 Decisions:
+          - en/08-decisions/README.md
+          - en/08-decisions/hard-constraints.md
+          - en/08-decisions/rejected-alternatives.md
+          - en/08-decisions/open-decisions.md
+  - Bahasa Indonesia:
+      - id/README.md

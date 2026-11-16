@@ -1,0 +1,57 @@
+# Publishes the handbook (docs/, built by mkdocs.yml) to GitHub Pages.
+#
+# One-time setting, in the repository on GitHub: Settings -> Pages -> Build and deployment ->
+# Source: "GitHub Actions". Nothing else needs configuring. Note that GitHub Pages from a PRIVATE
+# repository needs a paid GitHub plan, and a Pages site is public to anyone with the link unless
+# the organisation restricts it: the handbook has no secrets in it, but it does describe the robot.
+#
+# Build-time tooling only. Nothing here touches the robot.
+name: Handbook
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "requirements-docs.txt"
+      - "scripts/docs/**"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-docs.txt
+      - run: pip install -r requirements-docs.txt
+      # strict: a broken link, a broken anchor or a page missing from the navigation fails the build.
+      - run: mkdocs build --strict --site-dir site
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

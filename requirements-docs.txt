@@ -1,0 +1,10 @@
+# Build-time tooling for the handbook (mkdocs.yml). NOT part of the robot's runtime and never
+# installed into .venv: use a separate environment.
+#
+#   python3 -m venv .cache/docs-venv
+#   .cache/docs-venv/bin/pip install -r requirements-docs.txt
+#   .cache/docs-venv/bin/mkdocs build
+#
+# Keep pip's cache and the venv off the root filesystem (it is ~96% full): `.cache/` is on DATA.
+mkdocs>=1.6,<2
+mkdocs-material>=9.5,<10

@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 540" width="1000" height="540" font-family="DejaVu Sans, Verdana, Arial, Helvetica, sans-serif" role="img" aria-labelledby="t d">
+<title id="t">Which way each mecanum wheel turns for each motion</title>
+<desc id="d">Three top views of a four-wheel mecanum robot, front up. Forward: all four wheels turn forward. Strafe left, a positive vy: front-left and rear-right turn backward, front-right and rear-left turn forward. Turn left, a positive omega: both left wheels turn backward and both right wheels turn forward.</desc>
+<defs>
+<marker id="a-up" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#2563eb"/></marker>
+<marker id="a-dn" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#d97706"/></marker>
+<marker id="a-gr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#0f172a"/></marker>
+</defs>
+<rect x="0.5" y="0.5" width="999" height="539" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
+<text x="30" y="40" font-size="22" font-weight="700" text-anchor="start" fill="#0f172a">Mecanum wheels: which way each wheel turns</text>
+<text x="30" y="64" font-size="13" font-weight="400" text-anchor="start" fill="#475569">Top view, front of the robot up. Signs are what mecanum.c computes from the formulas; no real chassis has been checked yet.</text>
+<text x="180" y="110" font-size="15" font-weight="700" text-anchor="middle" fill="#0f172a">Forward</text>
+<text x="180" y="130" font-size="13" font-weight="400" text-anchor="middle" fill="#475569">+vx</text>
+<rect x="125" y="165" width="110" height="170" rx="14" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5"/>
+<text x="180" y="182" font-size="11" font-weight="400" text-anchor="middle" fill="#475569">front</text>
+<rect x="90" y="172" width="24" height="56" rx="5" fill="#e2e8f0" stroke="#475569" stroke-width="1.5"/>
+<line x1="95" y1="177" x2="109" y2="189" stroke="#64748b" stroke-width="2.5"/>
+<line x1="95" y1="194" x2="109" y2="206" stroke="#64748b" stroke-width="2.5"/>
+<line x1="95" y1="211" x2="109" y2="223" stroke="#64748b" stroke-width="2.5"/>
+<line x1="72" y1="216" x2="72" y2="184" stroke="#2563eb" stroke-width="3" marker-end="url(#a-up)"/>
+<text x="102" y="164" font-size="12" font-weight="700" text-anchor="middle" fill="#0f172a">0 FL</text>
+<text x="60" y="205" font-size="16" font-weight="700" text-anchor="middle" fill="#2563eb">+</text>
+<rect x="246" y="172" width="24" height="56" rx="5" fill="#e2e8f0" stroke="#475569" stroke-width="1.5"/>
+<line x1="251" y1="189" x2="265" y2="177" stroke="#64748b" stroke-width="2.5"/>
+<line x1="251" y1="206" x2="265" y2="194" stroke="#64748b" stroke-width="2.5"/>
+<line x1="251" y1="223" x2="265" y2="211" stroke="#64748b" stroke-width="2.5"/>
+<line x1="288" y1="216" x2="288" y2="184" stroke="#2563eb" stroke-width="3" marker-end="url(#a-up)"/>
+<text x="258" y="164" font-size="12" font-weight="700" text-anchor="middle" fill="#0f172a">1 FR</text>
+<text x="300" y="205" font-size="16" font-weight="700" text-anchor="middle" fill="#2563eb">+</text>
+<rect x="90" y="272" width="24" height="56" rx="5" fill="#e2e8f0" stroke="#475569" stroke-width="1.5"/>
+<line x1="95" y1="289" x2="109" y2="277" stroke="#64748b" stroke-width="2.5"/>
+<line x1="95" y1="306" x2="109" y2="294" stroke="#64748b" stroke-width="2.5"/>
+<line x1="95" y1="323" x2="109" y2="311" stroke="#64748b" stroke-width="2.5"/>
+<line x1="72" y1="316" x2="72" y2="284" stroke="#2563eb" stroke-width="3" marker-end="url(#a-up)"/>
+<text x="102" y="346" font-size="12" font-weight="700" text-anchor="middle" fill="#0f172a">2 RL</text>
+<text x="60" y="305" font-size="16" font-weight="700" text-anchor="middle" fill="#2563eb">+</text>
+<rect x="246" y="272" width="24" height="56" rx="5" fill="#e2e8f0" stroke="#475569" stroke-width="1.5"/>
+<line x1="251" y1="277" x2="265" y2="289" stroke="#64748b" stroke-width="2.5"/>
+<line x1="251" y1="294" x2="265" y2="306" stroke="#64748b" stroke-width="2.5"/>
+<line x1="251" y1="311" x2="265" y2="323" stroke="#64748b" stroke-width="2.5"/>
+<line x1="288" y1="316" x2="288" y2="284" stroke="#2563eb" stroke-width="3" marker-end="url(#a-up)"/>
+<text x="258" y="346" font-size="12" font-weight="700" text-anchor="middle" fill="#0f172a">3 RR</text>
+<text x="300" y="305" font-size="16" font-weight="700" text-anchor="middle" fill="#2563eb">+</text>
+<line x1="180" y1="288" x2="180" y2="206" stroke="#0f172a" stroke-width="4" marker-end="url(#a-gr)"/>
+<text x="180" y="368" font-size="13" font-weight="700" text-anchor="middle" fill="#0f172a">FL +   FR +   RL +   RR +</text>
+<text x="500" y="110" font-size="15" font-weight="700" text-anchor="middle" fill="#0f172a">Strafe left</text>
+<text x="500" y="130" font-size="13" font-weight="400" text-anchor="middle" fill="#475569">+vy</text>
+<rect x="445" y="165" width="110" height="170" rx="14" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5"/>
+<text x="500" y="182" font-size="11" font-weight="400" text-anchor="middle" fill="#475569">front</text>
+<rect x="410" y="172" width="24" height="56" rx="5" fill="#e2e8f0" stroke="#475569" stroke-width="1.5"/>
+<line x1="415" y1="177" x2="429" y2="189" stroke="#64748b" stroke-width="2.5"/>
+<line x1="415" y1="194" x2="429" y2="206" stroke="#64748b" stroke-width="2.5"/>
+<line x1="415" y1="211" x2="429" y2="223" stroke="#64748b" stroke-width="2.5"/>
+<line x1="392" y1="184" x2="392" y2="216" stroke="#d97706" stroke-width="3" marker-end="url(#a-dn)"/>
+<text x="422" y="164" font-size="12" font-weight="700" text-anchor="middle" fill="#0f172a">0 FL</text>
+<text x="380" y="205" font-size="16" font-weight="700" text-anchor="middle" fill="#d97706">−</text>
+<rect x="566" y="172" width="24" height="56" rx="5" fill="#e2e8f0" stroke="#475569" stroke-width="1.5"/>
+<line x1="571" y1="189" x2="585" y2="177" stroke="#64748b" stroke-width="2.5"/>
+<line x1="571" y1="206" x2="585" y2="194" stroke="#64748b" stroke-width="2.5"/>
+<line x1="571" y1="223" x2="585" y2="211" stroke="#64748b" stroke-width="2.5"/>
+<line x1="608" y1="216" x2="608" y2="184" stroke="#2563eb" stroke-width="3" marker-end="url(#a-up)"/>
+<text x="578" y="164" font-size="12" font-weight="700" text-anchor="middle" fill="#0f172a">1 FR</text>
+<text x="620" y="205" font-size="16" font-weight="700" text-anchor="middle" fill="#2563eb">+</text>
+<rect x="410" y="272" width="24" height="56" rx="5" fill="#e2e8f0" stroke="#475569" stroke-width="1.5"/>
+<line x1="415" y1="289" x2="429" y2="277" stroke="#64748b" stroke-width="2.5"/>
+<line x1="415" y1="306" x2="429" y2="294" stroke="#64748b" stroke-width="2.5"/>
+<line x1="415" y1="323" x2="429" y2="311" stroke="#64748b" stroke-width="2.5"/>
+<line x1="392" y1="316" x2="392" y2="284" stroke="#2563eb" stroke-width="3" marker-end="url(#a-up)"/>
+<text x="422" y="346" font-size="12" font-weight="700" text-anchor="middle" fill="#0f172a">2 RL</text>
+<text x="380" y="305" font-size="16" font-weight="700" text-anchor="middle" fill="#2563eb">+</text>
+<rect x="566" y="272" width="24" height="56" rx="5" fill="#e2e8f0" stroke="#475569" stroke-width="1.5"/>
+<line x1="571" y1="277" x2="585" y2="289" stroke="#64748b" stroke-width="2.5"/>
+<line x1="571" y1="294" x2="585" y2="306" stroke="#64748b" stroke-width="2.5"/>
+<line x1="571" y1="311" x2="585" y2="323" stroke="#64748b" stroke-width="2.5"/>
+<line x1="608" y1="284" x2="608" y2="316" stroke="#d97706" stroke-width="3" marker-end="url(#a-dn)"/>
+<text x="578" y="346" font-size="12" font-weight="700" text-anchor="middle" fill="#0f172a">3 RR</text>
+<text x="620" y="305" font-size="16" font-weight="700" text-anchor="middle" fill="#d97706">−</text>
+<line x1="538" y1="250" x2="456" y2="250" stroke="#0f172a" stroke-width="4" marker-end="url(#a-gr)"/>
+<text x="500" y="368" font-size="13" font-weight="700" text-anchor="middle" fill="#0f172a">FL −   FR +   RL +   RR −</text>
+<text x="820" y="110" font-size="15" font-weight="700" text-anchor="middle" fill="#0f172a">Turn left (counter-clockwise)</text>
+<text x="820" y="130" font-size="13" font-weight="400" text-anchor="middle" fill="#475569">+omega</text>
+<rect x="765" y="165" width="110" height="170" rx="14" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5"/>
+<text x="820" y="182" font-size="11" font-weight="400" text-anchor="middle" fill="#475569">front</text>
+<rect x="730" y="172" width="24" height="56" rx="5" fill="#e2e8f0" stroke="#475569" stroke-width="1.5"/>
+<line x1="735" y1="177" x2="749" y2="189" stroke="#64748b" stroke-width="2.5"/>
+<line x1="735" y1="194" x2="749" y2="206" stroke="#64748b" stroke-width="2.5"/>
+<line x1="735" y1="211" x2="749" y2="223" stroke="#64748b" stroke-width="2.5"/>
+<line x1="712" y1="184" x2="712" y2="216" stroke="#d97706" stroke-width="3" marker-end="url(#a-dn)"/>
+<text x="742" y="164" font-size="12" font-weight="700" text-anchor="middle" fill="#0f172a">0 FL</text>
+<text x="700" y="205" font-size="16" font-weight="700" text-anchor="middle" fill="#d97706">−</text>
+<rect x="886" y="172" width="24" height="56" rx="5" fill="#e2e8f0" stroke="#475569" stroke-width="1.5"/>
+<line x1="891" y1="189" x2="905" y2="177" stroke="#64748b" stroke-width="2.5"/>
+<line x1="891" y1="206" x2="905" y2="194" stroke="#64748b" stroke-width="2.5"/>
+<line x1="891" y1="223" x2="905" y2="211" stroke="#64748b" stroke-width="2.5"/>
+<line x1="928" y1="216" x2="928" y2="184" stroke="#2563eb" stroke-width="3" marker-end="url(#a-up)"/>
+<text x="898" y="164" font-size="12" font-weight="700" text-anchor="middle" fill="#0f172a">1 FR</text>
+<text x="940" y="205" font-size="16" font-weight="700" text-anchor="middle" fill="#2563eb">+</text>
+<rect x="730" y="272" width="24" height="56" rx="5" fill="#e2e8f0" stroke="#475569" stroke-width="1.5"/>
+<line x1="735" y1="289" x2="749" y2="277" stroke="#64748b" stroke-width="2.5"/>
+<line x1="735" y1="306" x2="749" y2="294" stroke="#64748b" stroke-width="2.5"/>
+<line x1="735" y1="323" x2="749" y2="311" stroke="#64748b" stroke-width="2.5"/>
+<line x1="712" y1="284" x2="712" y2="316" stroke="#d97706" stroke-width="3" marker-end="url(#a-dn)"/>
+<text x="742" y="346" font-size="12" font-weight="700" text-anchor="middle" fill="#0f172a">2 RL</text>
+<text x="700" y="305" font-size="16" font-weight="700" text-anchor="middle" fill="#d97706">−</text>
+<rect x="886" y="272" width="24" height="56" rx="5" fill="#e2e8f0" stroke="#475569" stroke-width="1.5"/>
+<line x1="891" y1="277" x2="905" y2="289" stroke="#64748b" stroke-width="2.5"/>
+<line x1="891" y1="294" x2="905" y2="306" stroke="#64748b" stroke-width="2.5"/>
+<line x1="891" y1="311" x2="905" y2="323" stroke="#64748b" stroke-width="2.5"/>
+<line x1="928" y1="316" x2="928" y2="284" stroke="#2563eb" stroke-width="3" marker-end="url(#a-up)"/>
+<text x="898" y="346" font-size="12" font-weight="700" text-anchor="middle" fill="#0f172a">3 RR</text>
+<text x="940" y="305" font-size="16" font-weight="700" text-anchor="middle" fill="#2563eb">+</text>
+<path d="M851.2 268.0 A36 36 0 1 0 787.4 265.2" fill="none" stroke="#0f172a" stroke-width="4" marker-end="url(#a-gr)"/>
+<text x="820" y="368" font-size="13" font-weight="700" text-anchor="middle" fill="#0f172a">FL −   FR +   RL −   RR +</text>
+<line x1="40" y1="408" x2="40" y2="382" stroke="#2563eb" stroke-width="3" marker-end="url(#a-up)"/>
+<text x="54" y="400" font-size="12" font-weight="400" text-anchor="start" fill="#0f172a">wheel turns so the robot would be pushed forward (positive speed)</text>
+<line x1="520" y1="382" x2="520" y2="408" stroke="#d97706" stroke-width="3" marker-end="url(#a-dn)"/>
+<text x="534" y="400" font-size="12" font-weight="400" text-anchor="start" fill="#0f172a">wheel turns the other way (negative speed)</text>
+<text x="40" y="436" font-size="12" font-weight="400" text-anchor="start" fill="#475569">Roller strokes show the rollers that touch the floor. They must point toward the middle of the chassis (an X); the picture assumes that.</text>
+<text x="40" y="454" font-size="12" font-weight="400" text-anchor="start" fill="#475569">Frame: x forward, y left, omega counter-clockwise. Wheel order everywhere: 0 front-left, 1 front-right, 2 rear-left, 3 rear-right.</text>
+<rect x="30" y="460" width="940" height="56" rx="8" fill="#fffbeb" stroke="#d97706"/>
+<text x="46" y="484" font-size="13" font-weight="700" text-anchor="start" fill="#92400e">Open question (Known issue #18): serial-protocol.md and verify_wheels.py say a positive vy "strafes right".</text>
+<text x="46" y="504" font-size="12" font-weight="400" text-anchor="start" fill="#92400e">The formulas, and the Jetson (foot_direction left = +vy), say left. Decide, then fix whichever is wrong, before the first wheel check.</text>
+</svg>

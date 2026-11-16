@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 560" width="1000" height="560" font-family="DejaVu Sans, Verdana, Arial, Helvetica, sans-serif" role="img" aria-labelledby="t d">
+<title id="t">Why the GPU voice is fast and fragile</title>
+<desc id="d">Two charts. First: time to the first spoken word is 609 to 909 milliseconds when the voice process is in RAM and 10.5 seconds when 799 MiB of it is in swap. Second: Supertonic on the GPU answers in a median 626 ms against 974 ms on the CPU, but holds 1738 MiB against 472 MiB.</desc>
+<defs>
+<marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#475569"/></marker>
+<marker id="arr-rev" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M10 0 L0 5 L10 10 z" fill="#475569"/></marker>
+</defs>
+<rect x="0.5" y="0.5" width="999" height="559" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
+<text x="30" y="40" font-size="22" font-weight="700" text-anchor="start" fill="#0f172a">The GPU voice is fast and fragile</text>
+<text x="30" y="64" font-size="13" font-weight="400" text-anchor="start" fill="#475569">Both charts: Supertonic text-to-speech on a Jetson Orin Nano 8 GB. Measured 2026-09-15 (AGENTS.md).</text>
+<text x="30" y="106" font-size="15" font-weight="700" text-anchor="start" fill="#0f172a">A. Time to the first spoken word, one 21-character first chunk, GPU voice</text>
+<line x1="300" y1="130" x2="300" y2="242" stroke="#e2e8f0" stroke-width="1"/>
+<text x="300" y="260" font-size="11" font-weight="400" text-anchor="middle" fill="#475569">0 s</text>
+<line x1="410" y1="130" x2="410" y2="242" stroke="#e2e8f0" stroke-width="1"/>
+<text x="410" y="260" font-size="11" font-weight="400" text-anchor="middle" fill="#475569">2 s</text>
+<line x1="520" y1="130" x2="520" y2="242" stroke="#e2e8f0" stroke-width="1"/>
+<text x="520" y="260" font-size="11" font-weight="400" text-anchor="middle" fill="#475569">4 s</text>
+<line x1="630" y1="130" x2="630" y2="242" stroke="#e2e8f0" stroke-width="1"/>
+<text x="630" y="260" font-size="11" font-weight="400" text-anchor="middle" fill="#475569">6 s</text>
+<line x1="740" y1="130" x2="740" y2="242" stroke="#e2e8f0" stroke-width="1"/>
+<text x="740" y="260" font-size="11" font-weight="400" text-anchor="middle" fill="#475569">8 s</text>
+<line x1="850" y1="130" x2="850" y2="242" stroke="#e2e8f0" stroke-width="1"/>
+<text x="850" y="260" font-size="11" font-weight="400" text-anchor="middle" fill="#475569">10 s</text>
+<text x="288" y="161" font-size="13" font-weight="700" text-anchor="end" fill="#0f172a">pages in RAM</text>
+<rect x="300" y="142" width="33.495" height="30" rx="3" fill="#2563eb" stroke="#2563eb" stroke-width="1"/>
+<rect x="333.495" y="142" width="16.5" height="30" rx="3" fill="#93c5fd" stroke="#2563eb" stroke-width="1"/>
+<text x="359.995" y="163" font-size="13" font-weight="700" text-anchor="start" fill="#1e3a8a">609 to 909 ms</text>
+<text x="288" y="217" font-size="13" font-weight="700" text-anchor="end" fill="#0f172a">799 MiB of the voice</text>
+<text x="288" y="233" font-size="13" font-weight="700" text-anchor="end" fill="#0f172a">process in swap</text>
+<rect x="300" y="198" width="577.5" height="30" rx="3" fill="#d97706" stroke="#d97706" stroke-width="1"/>
+<text x="867.5" y="219" font-size="13" font-weight="700" text-anchor="end" fill="#ffffff">10,500 ms</text>
+<text x="885.5" y="182" font-size="11" font-weight="400" text-anchor="start" fill="#0f172a"></text>
+<text x="30" y="290" font-size="12" font-weight="400" text-anchor="start" fill="#475569">Same GPU, same model, same four steps, and the health endpoint was green in both. Every page the</text>
+<text x="30" y="307" font-size="12" font-weight="400" text-anchor="start" fill="#475569">synthesiser touches has to come back from the swapfile first, and it touches most of them.</text>
+<text x="30" y="355" font-size="15" font-weight="700" text-anchor="start" fill="#0f172a">B. GPU against CPU, the same text and four steps, 27 utterances each</text>
+<text x="30" y="389" font-size="13" font-weight="700" text-anchor="start" fill="#0f172a">Median time to first word</text>
+<text x="85" y="418" font-size="12.5" font-weight="700" text-anchor="end" fill="#0f172a">GPU</text>
+<rect x="95" y="401" width="225.35999999999999" height="26" rx="3" fill="#2563eb" stroke="#2563eb" stroke-width="1"/>
+<text x="328.36" y="420" font-size="13" font-weight="700" text-anchor="start" fill="#1e3a8a">626 ms</text>
+<text x="85" y="454" font-size="12.5" font-weight="700" text-anchor="end" fill="#0f172a">CPU</text>
+<rect x="95" y="437" width="350.64" height="26" rx="3" fill="#d97706" stroke="#d97706" stroke-width="1"/>
+<text x="453.64" y="456" font-size="13" font-weight="700" text-anchor="start" fill="#78350f">974 ms</text>
+<text x="510" y="389" font-size="13" font-weight="700" text-anchor="start" fill="#0f172a">Resident memory</text>
+<text x="565" y="418" font-size="12.5" font-weight="700" text-anchor="end" fill="#0f172a">GPU</text>
+<rect x="575" y="401" width="217.25" height="26" rx="3" fill="#2563eb" stroke="#2563eb" stroke-width="1"/>
+<text x="800.25" y="420" font-size="13" font-weight="700" text-anchor="start" fill="#1e3a8a">1738 MiB</text>
+<text x="565" y="454" font-size="12.5" font-weight="700" text-anchor="end" fill="#0f172a">CPU</text>
+<rect x="575" y="437" width="59.0" height="26" rx="3" fill="#d97706" stroke="#d97706" stroke-width="1"/>
+<text x="642.0" y="456" font-size="13" font-weight="700" text-anchor="start" fill="#78350f">472 MiB</text>
+<text x="30" y="497" font-size="13" font-weight="700" text-anchor="start" fill="#0f172a">The GPU saves 348 ms on every turn and costs 1266 MiB more, but only while that memory stays in RAM.</text>
+<text x="30" y="517" font-size="12" font-weight="400" text-anchor="start" fill="#475569">Check with ./scripts/measure/whats_running.py: a non-zero swap on tts means the GPU has stopped being the fast option.</text>
+</svg>
